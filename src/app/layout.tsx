@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   title: 'NeuroCoach - Focus AI | Neuroadaptive Focus Coach',
   description: 'A web application that uses EEG data from the Muse 2 headset to detect when students are losing focus during study sessions and provides gentle, real-time alerts to refocus.',
   keywords: ['EEG', 'focus', 'productivity', 'Muse headset', 'neurofeedback', 'study', 'concentration'],
-  authors: [{ name: 'JA LIL TECH' }],
+  authors: [{ name: 'AJ' }],
   openGraph: {
     title: 'NeuroCoach - Focus AI',
     description: 'Neuroadaptive Focus Coach - Real-time focus detection using EEG data from Muse 2 headset',

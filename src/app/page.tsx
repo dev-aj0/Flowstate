@@ -227,7 +227,7 @@ export default function Dashboard() {
       {/* Powered By Footer */}
       <div className="text-center py-4">
         <p className="text-sm text-muted-foreground">
-          Powered by <span className="font-semibold text-foreground">JA LIL TECH</span>
+          Powered by <span className="font-semibold text-foreground">AJ</span>
         </p>
       </div>
     </div>

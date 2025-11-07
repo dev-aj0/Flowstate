@@ -77,7 +77,7 @@ export function Sidebar() {
       {/* Focus Indicator */}
       <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
         <Zap className="w-3 h-3 text-[#3b82f6]" />
-        <span>Powered by JA LIL TECH</span>
+        <span>Powered by AJ</span>
       </div>
     </aside>
   );
