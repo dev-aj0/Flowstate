@@ -67,9 +67,7 @@ export function Sidebar() {
           <p className="text-xs text-muted-foreground">
             {museConnected 
               ? 'Device ready for session' 
-              : connected 
-                ? 'Waiting for Muse headset' 
-                : 'Backend not running - Start backend server on port 8000'}
+              : 'Waiting for Muse headset'}
           </p>
         </div>
       </div>

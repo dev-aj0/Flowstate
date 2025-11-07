@@ -220,12 +220,6 @@ export default function SessionPage() {
             <FocusMeter percentage={currentFocusPercentage} size="lg" showLabel={false} />
             <div className="mt-6 space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Backend</span>
-                <span className={`text-sm font-medium transition-colors ${connected ? 'text-[#22c55e]' : 'text-[#f97316]'}`}>
-                  {connected ? '✓ Connected' : '○ Disconnected'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Muse</span>
                 <span className={`text-sm font-medium transition-colors ${museConnected ? 'text-[#22c55e]' : 'text-[#f97316]'}`}>
                   {museConnected ? '✓ Connected' : '○ Not Connected'}

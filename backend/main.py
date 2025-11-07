@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
 
 # Get allowed origins from environment or use defaults
+# For network access, add your client IPs: ALLOWED_ORIGINS=http://localhost:3000,http://192.168.1.100:3000
 ALLOWED_ORIGINS = os.getenv(
     "ALLOWED_ORIGINS",
     "http://localhost:3000,http://127.0.0.1:3000"
@@ -31,9 +32,11 @@ app = FastAPI(title="NeuroCoach Backend")
 
 # CORS middleware for Next.js frontend
 # Supports both development and production origins
+# For network access (Windows server), you may need to add client IPs to ALLOWED_ORIGINS
+# Or set ALLOWED_ORIGINS="*" for development (less secure)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=ALLOWED_ORIGINS if "*" not in ALLOWED_ORIGINS else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -415,5 +418,7 @@ async def status():
 
 if __name__ == "__main__":
     import uvicorn
+    # host="0.0.0.0" allows connections from any network interface (localhost + network)
+    # For network access, ensure Windows Firewall allows port 8000
     uvicorn.run(app, host="0.0.0.0", port=8000)
 

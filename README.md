@@ -61,9 +61,15 @@ pip install -r requirements.txt
 3. Start streaming in Muse Direct
 4. The backend will automatically detect the LSL stream
 
-**Option C: Without Muse**
-- The app will automatically use mock data if no Muse is detected
-- Perfect for development and testing
+**Option C: Windows Server Setup (Network Access)**
+- Run backend on Windows machine with BlueMuse
+- Connect from any device (Mac, phone, tablet) over network
+- See [backend/README_WINDOWS.md](backend/README_WINDOWS.md) for detailed setup
+- Perfect for using Muse on Windows while accessing from other devices
+
+**Option D: Without Muse**
+- The app requires a Muse headset connected via LSL
+- Backend will wait for Muse connection
 
 ### 4. Run the Application
 
@@ -95,11 +101,20 @@ The frontend will automatically connect to the backend via WebSocket. If the bac
 
 Set the WebSocket URL in `.env.local`:
 
+**Local Development:**
 ```env
 NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws
 ```
 
+**Network Access (Windows Server):**
+```env
+NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8000/ws
+```
+Replace `192.168.1.100` with your Windows machine's IP address.
+
 Default is `ws://localhost:8000/ws` if not set.
+
+**Note:** For Windows server setup, see [backend/README_WINDOWS.md](backend/README_WINDOWS.md)
 
 ## Project Structure
 
