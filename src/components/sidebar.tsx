@@ -1,12 +1,13 @@
 "use client";
 
-import { Brain, LayoutDashboard, Activity, BarChart3, Settings, Zap } from 'lucide-react';
+import { Brain, LayoutDashboard, Activity, BarChart3, Settings, Zap, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useEEGStream } from '@/hooks/use-eeg-stream';
 
 const navItems = [
+  { name: 'Instructions', href: '/instructions', icon: BookOpen },
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Session', href: '/session', icon: Activity },
   { name: 'Insights', href: '/insights', icon: BarChart3 },
@@ -64,7 +65,11 @@ export function Sidebar() {
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {museConnected ? 'Device ready for session' : connected ? 'Waiting for Muse headset' : 'Backend disconnected'}
+            {museConnected 
+              ? 'Device ready for session' 
+              : connected 
+                ? 'Waiting for Muse headset' 
+                : 'Backend not running - Start backend server on port 8000'}
           </p>
         </div>
       </div>

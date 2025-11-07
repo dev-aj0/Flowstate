@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Volume2, VolumeX, Bell, Moon, Sun, Clock, User, Bluetooth } from 'lucide-react';
 import { getSettings, saveSettings, getUserProfile, saveUserProfile } from '@/lib/storage';
 import { AppSettings } from '@/types';
+import { CustomSelect } from '@/components/ui/custom-select';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(getSettings());
@@ -98,17 +99,18 @@ export default function SettingsPage() {
             <label className="block text-sm font-medium mb-2">
               Diagnosis (Optional)
             </label>
-            <select
+            <CustomSelect
               value={profile?.diagnosis || ''}
-              onChange={(e) => handleProfileChange('diagnosis', e.target.value)}
-              className="w-full px-4 py-3 rounded-lg glass-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
-            >
-              <option value="">None</option>
-              <option value="adhd">ADHD</option>
-              <option value="anxiety">Anxiety</option>
-              <option value="both">ADHD + Anxiety</option>
-              <option value="other">Other</option>
-            </select>
+              onChange={(value) => handleProfileChange('diagnosis', value)}
+              placeholder="Select diagnosis..."
+              options={[
+                { value: '', label: 'None' },
+                { value: 'adhd', label: 'ADHD' },
+                { value: 'anxiety', label: 'Anxiety' },
+                { value: 'both', label: 'ADHD + Anxiety' },
+                { value: 'other', label: 'Other' },
+              ]}
+            />
             <p className="text-xs text-muted-foreground mt-2">
               This helps adjust focus thresholds for better accuracy
             </p>
