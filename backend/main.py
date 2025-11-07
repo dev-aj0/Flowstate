@@ -12,6 +12,12 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
 
+# Get allowed origins from environment or use defaults
+ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000"
+).split(",")
+
 # Import LSL - required for Muse connection
 try:
     from pylsl import StreamInlet, resolve_stream, LostError
@@ -24,9 +30,10 @@ except (ImportError, RuntimeError) as e:
 app = FastAPI(title="NeuroCoach Backend")
 
 # CORS middleware for Next.js frontend
+# Supports both development and production origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

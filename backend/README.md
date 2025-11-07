@@ -68,6 +68,24 @@ The backend will:
 - Fall back to mock data if no Muse is found
 - Stream EEG data via WebSocket at `/ws`
 
+## Environment Variables
+
+### CORS Configuration
+
+For production deployment, set the `ALLOWED_ORIGINS` environment variable to include your frontend URL:
+
+```bash
+ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,https://your-frontend.vercel.app
+```
+
+**Example for Railway/Render:**
+- In your deployment platform's environment variables, add:
+  ```
+  ALLOWED_ORIGINS=http://localhost:3000,https://your-app.vercel.app
+  ```
+
+**Default:** If not set, defaults to `http://localhost:3000,http://127.0.0.1:3000` (development only)
+
 ## API Endpoints
 
 - `GET /` - Health check

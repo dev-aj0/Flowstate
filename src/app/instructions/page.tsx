@@ -247,6 +247,7 @@ export default function InstructionsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="p-4 rounded-lg bg-white/5 dark:bg-white/5 light:bg-black/5">
                     <h4 className="font-semibold text-foreground mb-2">Frontend</h4>
+                    <p className="text-sm text-muted-foreground mb-1">Local Development:</p>
                     <a 
                       href="http://localhost:3000" 
                       target="_blank" 
@@ -258,6 +259,7 @@ export default function InstructionsPage() {
                   </div>
                   <div className="p-4 rounded-lg bg-white/5 dark:bg-white/5 light:bg-black/5">
                     <h4 className="font-semibold text-foreground mb-2">Backend API</h4>
+                    <p className="text-sm text-muted-foreground mb-1">Local Development:</p>
                     <a 
                       href="http://localhost:8000" 
                       target="_blank" 
@@ -266,6 +268,9 @@ export default function InstructionsPage() {
                     >
                       http://localhost:8000
                     </a>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Note: Backend must be deployed separately for production
+                    </p>
                   </div>
                 </div>
               </div>
