@@ -10,18 +10,23 @@ Set these in your Vercel project settings:
 
 ```
 NEXT_PUBLIC_WS_URL=wss://your-backend-domain.com/ws
+NEXT_PUBLIC_SITE_URL=https://your-app.vercel.app
 ```
 
 **Important:** 
 - Use `wss://` (secure WebSocket) in production, not `ws://`
 - Replace `your-backend-domain.com` with your actual backend URL
+- Replace `your-app.vercel.app` with your actual Vercel URL (for Open Graph images)
 
 ### Deployment Steps
 
 1. Push your code to GitHub
 2. Connect your repository to Vercel
-3. Add the `NEXT_PUBLIC_WS_URL` environment variable
-4. Deploy
+3. Add environment variables:
+   - `NEXT_PUBLIC_WS_URL=wss://your-backend-domain.com/ws`
+   - `NEXT_PUBLIC_SITE_URL=https://your-app.vercel.app`
+4. **Create and add `og-image.png`** (1200x630px) to the `public/` folder for link previews
+5. Deploy
 
 ## Backend Deployment
 

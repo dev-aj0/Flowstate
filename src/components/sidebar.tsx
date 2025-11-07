@@ -26,7 +26,7 @@ export function Sidebar() {
           <Brain className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h1 className="text-lg font-semibold text-foreground">NeuroBJ</h1>
+          <h1 className="text-lg font-semibold text-foreground">NeuroCoach</h1>
           <p className="text-xs text-muted-foreground">Focus AI</p>
         </div>
       </div>
