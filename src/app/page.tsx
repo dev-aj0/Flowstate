@@ -1,0 +1,235 @@
+"use client";
+
+import { useEffect, useState } from 'react';
+import { Brain, Clock, TrendingUp, Target } from 'lucide-react';
+import { StatCard } from '@/components/stat-card';
+import { FocusMeter } from '@/components/focus-meter';
+import Link from 'next/link';
+import { getSessions, getUserProfile } from '@/lib/storage';
+import { SessionData } from '@/types';
+import { useEEGStream } from '@/hooks/use-eeg-stream';
+
+export default function Dashboard() {
+  const [profile, setProfile] = useState<any>(null);
+  const [sessions, setSessions] = useState<SessionData[]>([]);
+  const [todayFocus, setTodayFocus] = useState(0);
+  const [totalSessions, setTotalSessions] = useState(0);
+  const [avgFocus, setAvgFocus] = useState(0);
+  const [focusStreak, setFocusStreak] = useState(0);
+  
+  // Check backend and Muse connection status (not active session, just checking connection)
+  const { connected, museConnected, connectionError, focusState } = useEEGStream(false);
+
+  useEffect(() => {
+    const userProfile = getUserProfile();
+    const allSessions = getSessions();
+    
+    setProfile(userProfile);
+    setSessions(allSessions);
+    setTotalSessions(allSessions.length);
+
+    // Calculate today's focus
+    const today = new Date().setHours(0, 0, 0, 0);
+    const todaySessions = allSessions.filter(s => new Date(s.date).setHours(0, 0, 0, 0) === today);
+    const todayAvg = todaySessions.length > 0
+      ? todaySessions.reduce((sum, s) => sum + s.focusPercentage, 0) / todaySessions.length
+      : 0;
+    setTodayFocus(Math.round(todayAvg));
+
+    // Calculate overall average
+    const overallAvg = allSessions.length > 0
+      ? allSessions.reduce((sum, s) => sum + s.focusPercentage, 0) / allSessions.length
+      : 0;
+    setAvgFocus(Math.round(overallAvg));
+
+    // Calculate real focus streak (consecutive days with at least one session)
+    if (allSessions.length > 0) {
+      const sortedSessions = [...allSessions].sort((a, b) => b.date - a.date);
+      let streak = 0;
+      let currentDate = new Date();
+      currentDate.setHours(0, 0, 0, 0);
+      
+      for (const session of sortedSessions) {
+        const sessionDate = new Date(session.date);
+        sessionDate.setHours(0, 0, 0, 0);
+        const daysDiff = Math.floor((currentDate.getTime() - sessionDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (daysDiff === streak) {
+          streak++;
+        } else if (daysDiff > streak) {
+          break;
+        }
+      }
+      setFocusStreak(streak);
+    } else {
+      setFocusStreak(0);
+    }
+  }, []);
+
+  const recentSessions = sessions.slice(-3).reverse();
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
+      {/* Header */}
+      <div className="animate-slide-in-down">
+        <h1 className="text-4xl font-bold mb-2 text-foreground">
+          Welcome back, {profile?.name || 'User'} 👋
+        </h1>
+        <p className="text-lg text-muted-foreground">
+          Ready to focus? Let's make today productive.
+        </p>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          title="Today's Focus"
+          value={`${todayFocus}%`}
+          subtitle={todayFocus > 0 ? "Average focus level" : "No sessions today"}
+          icon={Brain}
+        />
+        <StatCard
+          title="Total Sessions"
+          value={totalSessions}
+          subtitle="Completed"
+          icon={Clock}
+        />
+        <StatCard
+          title="Average Focus"
+          value={`${avgFocus}%`}
+          subtitle={avgFocus > 0 ? "All-time average" : "No sessions yet"}
+          icon={TrendingUp}
+        />
+        <StatCard
+          title="Focus Streak"
+          value={focusStreak > 0 ? `${focusStreak} day${focusStreak !== 1 ? 's' : ''}` : "0 days"}
+          subtitle={focusStreak > 0 ? "Consecutive days" : "Start a session to begin"}
+          icon={Target}
+        />
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Focus Meter */}
+        <div className="glass-card p-8 animate-scale-in">
+          <h2 className="text-xl font-semibold mb-6 text-foreground">Current State</h2>
+          <div className="flex flex-col items-center">
+            <FocusMeter percentage={todayFocus} size="lg" />
+            <div className="mt-6 w-full space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Backend</span>
+                <span className={`font-medium transition-colors ${connected ? 'text-[#22c55e]' : 'text-[#f97316]'}`}>
+                  {connected ? '✓ Connected' : '○ Disconnected'}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Muse</span>
+                <span className={`font-medium transition-colors ${museConnected ? 'text-[#22c55e]' : 'text-[#f97316]'}`}>
+                  {museConnected ? '✓ Connected' : '○ Not Connected'}
+                </span>
+              </div>
+              {connectionError && (
+                <div className="text-xs text-[#f97316] mt-1">
+                  {connectionError}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="glass-card p-8 lg:col-span-2 animate-scale-in">
+          <h2 className="text-xl font-semibold mb-6 text-foreground">Quick Actions</h2>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            <Link
+              href="/session"
+              className="p-6 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#22c55e] hover:opacity-90 transition-opacity hover-lift"
+            >
+              <Brain className="w-8 h-8 text-white mb-3" />
+              <h3 className="text-lg font-semibold text-white mb-1">Start Focus Session</h3>
+              <p className="text-sm text-white/90">Begin a 25-minute session</p>
+            </Link>
+            
+            <Link
+              href="/insights"
+              className="glass-card-strong p-6 hover:bg-white/10 dark:hover:bg-white/10 light:hover:bg-black/10 transition-colors hover-lift"
+            >
+              <TrendingUp className="w-8 h-8 text-[#3b82f6] mb-3" />
+              <h3 className="text-lg font-semibold mb-1 text-foreground">View Insights</h3>
+              <p className="text-sm text-muted-foreground">Analyze your patterns</p>
+            </Link>
+          </div>
+
+          {/* Recent Sessions */}
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-3">Recent Sessions</h3>
+            {recentSessions.length > 0 ? (
+              <div className="space-y-2">
+                {recentSessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/8 dark:bg-white/5 dark:hover:bg-white/8 light:bg-black/5 light:hover:bg-black/10 transition-colors hover-lift"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-[#3b82f6]/10 flex items-center justify-center">
+                        <Brain className="w-5 h-5 text-[#3b82f6]" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          {session.name || new Date(session.date).toLocaleDateString()}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {Math.floor(session.duration / 60)} min • {session.distractionEvents} alerts
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-semibold text-[#3b82f6]">
+                        {session.focusPercentage}%
+                      </p>
+                      <p className="text-xs text-muted-foreground">Focus</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No sessions yet. Start your first session!</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Tips Section */}
+      <div className="glass-card p-6">
+        <h3 className="text-lg font-semibold mb-4 text-foreground">💡 Focus Tips</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-4 rounded-lg bg-white/5 dark:bg-white/5 light:bg-black/5">
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Stay Hydrated:</span> Dehydration can reduce focus by up to 10%
+            </p>
+          </div>
+          <div className="p-4 rounded-lg bg-white/5 dark:bg-white/5 light:bg-black/5">
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Take Breaks:</span> Use the Pomodoro technique for best results
+            </p>
+          </div>
+          <div className="p-4 rounded-lg bg-white/5 dark:bg-white/5 light:bg-black/5">
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Environment:</span> A quiet, organized space improves concentration
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Powered By Footer */}
+      <div className="text-center py-4">
+        <p className="text-sm text-muted-foreground">
+          Powered by <span className="font-semibold text-foreground">JA LIL TECH</span>
+        </p>
+      </div>
+    </div>
+  );
+}
