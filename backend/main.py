@@ -4,13 +4,15 @@ Handles Muse headset connection via LSL and streams EEG data to frontend via Web
 """
 
 import asyncio
+import importlib
 import json
-import time
 import os
+import time
 from typing import List, Optional
+
+import numpy as np
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-import numpy as np
 
 # Get allowed origins from environment or use defaults
 # For network access, add your client IPs: ALLOWED_ORIGINS=http://localhost:3000,http://192.168.1.100:3000
@@ -19,14 +21,35 @@ ALLOWED_ORIGINS = os.getenv(
     "http://localhost:3000,http://127.0.0.1:3000"
 ).split(",")
 
-# Import LSL - required for Muse connection
-try:
-    from pylsl import StreamInlet, resolve_stream, LostError
-except (ImportError, RuntimeError) as e:
-    print(f"ERROR: LSL library not available: {e}")
-    print("Please install LSL: brew install labstreaminglayer/tap/lsl")
-    print("And ensure DYLD_LIBRARY_PATH is set: export DYLD_LIBRARY_PATH=/opt/homebrew/lib")
-    raise
+
+def _load_pylsl():
+    """Attempt to load pylsl without raising import-time exceptions."""
+
+    spec = importlib.util.find_spec("pylsl")
+    if spec is None:
+        return None
+
+    module = importlib.import_module("pylsl")
+    return module
+
+
+_pylsl_module = _load_pylsl()
+
+if _pylsl_module is None:
+    StreamInlet = None
+    resolve_stream = None
+    class LostErrorPlaceholder(Exception):
+        """Fallback exception used when pylsl is unavailable."""
+
+    LostError = LostErrorPlaceholder
+    print(
+        "WARNING: pylsl not available. Install pylsl to connect a Muse headset. "
+        "Backend will stream mock data until a real headset is detected."
+    )
+else:
+    StreamInlet = _pylsl_module.StreamInlet
+    resolve_stream = _pylsl_module.resolve_stream
+    LostError = _pylsl_module.LostError
 
 app = FastAPI(title="NeuroCoach Backend")
 
@@ -46,6 +69,7 @@ app.add_middleware(
 active_connections: List[WebSocket] = []
 muse_stream: Optional[StreamInlet] = None
 stream_active = False
+mock_mode = False
 
 # Sample buffer for FFT processing (need window of samples for frequency analysis)
 sample_buffer: List[float] = []
@@ -54,6 +78,9 @@ BUFFER_SIZE = 256  # ~1 second at 256Hz
 # Baseline values for focus detection
 baseline_alpha = 50.0
 baseline_beta = 60.0
+
+rng = np.random.default_rng()
+MOCK_SAMPLE_RATE = 256.0
 
 
 def calculate_band_power(data: np.ndarray, fs: float, low_freq: float, high_freq: float) -> float:
@@ -115,7 +142,7 @@ def process_eeg_sample(sample_buffer: List[float], fs: float) -> dict:
 def analyze_focus_state(reading: dict) -> dict:
     """Analyze focus state from EEG reading"""
     global baseline_alpha, baseline_beta
-    
+
     alpha = reading["alpha"]
     beta = reading["beta"]
     
@@ -150,16 +177,99 @@ def analyze_focus_state(reading: dict) -> dict:
     }
 
 
+async def _broadcast_json(payload: dict) -> None:
+    """Send a JSON payload to all connected clients."""
+
+    disconnected: List[WebSocket] = []
+    for ws in active_connections:
+        try:
+            await ws.send_json(payload)
+        except Exception as exc:
+            print(f"Error sending to client: {exc}")
+            disconnected.append(ws)
+
+    for ws in disconnected:
+        if ws in active_connections:
+            active_connections.remove(ws)
+
+
+async def _stream_mock_data(reason: str) -> None:
+    """Fallback EEG stream when Muse headset or pylsl is unavailable."""
+
+    global mock_mode
+    mock_mode = True
+
+    print(f"Starting mock EEG stream ({reason}).")
+    await _broadcast_json(
+        {
+            "type": "muse_status",
+            "museConnected": False,
+            "mockMode": True,
+            "message": f"Using mock data: {reason}",
+        }
+    )
+
+    global baseline_alpha, baseline_beta
+    baseline_alpha = 50.0
+    baseline_beta = 60.0
+
+    start = time.time()
+
+    while stream_active and active_connections:
+        elapsed = time.time() - start
+        alpha = 48.0 + 7.0 * np.sin(elapsed / 2.5) + rng.normal(0, 2.0)
+        alpha = max(alpha, 5.0)
+        beta = alpha * (1.05 + 0.25 * np.sin(elapsed / 3.0) + rng.normal(0, 0.05))
+        beta = max(beta, 5.0)
+        theta = alpha * (0.65 + 0.1 * np.sin(elapsed / 6.0) + rng.normal(0, 0.05))
+        delta = alpha * (0.55 + 0.1 * np.cos(elapsed / 5.0) + rng.normal(0, 0.05))
+        gamma = beta * (0.7 + 0.1 * np.sin(elapsed / 4.0) + rng.normal(0, 0.03))
+
+        reading = {
+            "timestamp": int(time.time() * 1000),
+            "alpha": float(alpha),
+            "beta": float(beta),
+            "gamma": float(max(gamma, 1.0)),
+            "delta": float(max(delta, 1.0)),
+            "theta": float(max(theta, 1.0)),
+        }
+
+        focus_state = analyze_focus_state(reading)
+
+        await _broadcast_json(
+            {
+                "type": "eeg_data",
+                "reading": reading,
+                "focusState": focus_state,
+                "mockMode": True,
+            }
+        )
+
+        await asyncio.sleep(0.2)
+
+    print("Mock EEG stream stopped.")
+    mock_mode = False
+
+
 async def stream_muse_data():
     """Stream Muse data to all connected WebSocket clients"""
-    global muse_stream, stream_active, baseline_alpha, baseline_beta, sample_buffer
-    
+    global muse_stream, stream_active, baseline_alpha, baseline_beta, sample_buffer, mock_mode
+
+    if stream_active:
+        return
+
+    stream_active = True
+
     try:
         # Resolve Muse stream (looks for Muse LSL stream)
+        if resolve_stream is None or StreamInlet is None:
+            await _stream_mock_data("pylsl not installed")
+            return
+
         print("Looking for Muse LSL stream...")
         print("Make sure BlueMuse or Muse Direct is running and streaming.")
         streams = resolve_stream('type', 'EEG')
-        
+
         if not streams:
             error_msg = (
                 "ERROR: No Muse LSL stream found.\n"
@@ -172,18 +282,14 @@ async def stream_muse_data():
                 "\nWaiting for Muse connection..."
             )
             print(error_msg)
-            
+
             # Send error to connected clients
             error_message = {
                 "type": "error",
                 "message": "No Muse headset detected. Please connect your Muse headset and start LSL stream in BlueMuse.",
             }
-            for ws in active_connections:
-                try:
-                    await ws.send_json(error_message)
-                except:
-                    pass
-            
+            await _broadcast_json(error_message)
+
             # Keep trying to find stream
             while not streams and active_connections:
                 await asyncio.sleep(2)
@@ -193,34 +299,33 @@ async def stream_muse_data():
                     streams = []
                 if streams:
                     break
-            
+
             if not streams:
                 print("Failed to find Muse stream. Backend will wait for connection.")
                 # Notify clients that Muse is not connected
                 muse_disconnected_msg = {
                     "type": "muse_status",
                     "museConnected": False,
-                    "message": "No Muse headset detected",
+                    "mockMode": True,
+                    "message": "No Muse headset detected. Using mock data.",
                 }
-                for ws in active_connections:
-                    try:
-                        await ws.send_json(muse_disconnected_msg)
-                    except:
-                        pass
+                await _broadcast_json(muse_disconnected_msg)
+                await _stream_mock_data("no Muse headset detected")
                 return
-        
+
         # Create inlet
         inlet = StreamInlet(streams[0])
         print(f"Connected to stream: {streams[0].name()}")
-        
+
         # Get stream info
         fs = inlet.info().nominal_srate()
         if fs == 0:
             fs = 256  # Default Muse sample rate
-        
+
         print(f"Sample rate: {fs} Hz")
         stream_active = True
         muse_stream = inlet
+        mock_mode = False
         
         # Notify all clients that Muse is now connected
         muse_connected_msg = {
@@ -228,23 +333,19 @@ async def stream_muse_data():
             "museConnected": True,
             "message": "Muse headset connected",
         }
-        for ws in active_connections:
-            try:
-                await ws.send_json(muse_connected_msg)
-            except:
-                pass
-        
+        await _broadcast_json(muse_connected_msg)
+
         # Reset baselines and buffer
         baseline_alpha = 50.0
         baseline_beta = 60.0
         sample_buffer = []
-        
+
         # Stream loop
         while stream_active and active_connections:
             try:
                 # Pull sample (timeout after 1 second)
                 sample, timestamp = inlet.pull_sample(timeout=1.0)
-                
+
                 if sample:
                     # Process sample (average across channels for simplicity)
                     # Muse has 4 channels: TP9, AF7, AF8, TP10
@@ -272,27 +373,15 @@ async def stream_muse_data():
                     
                     # Analyze focus state
                     focus_state = analyze_focus_state(reading)
-                    
+
                     # Send to all connected clients
                     message = {
                         "type": "eeg_data",
                         "reading": reading,
                         "focusState": focus_state,
                     }
-                    
-                    disconnected = []
-                    for ws in active_connections:
-                        try:
-                            await ws.send_json(message)
-                        except Exception as e:
-                            print(f"Error sending to client: {e}")
-                            disconnected.append(ws)
-                    
-                    # Remove disconnected clients
-                    for ws in disconnected:
-                        if ws in active_connections:
-                            active_connections.remove(ws)
-                
+                    await _broadcast_json(message)
+
             except LostError:
                 print("Stream lost. Reconnecting...")
                 muse_stream = None
@@ -302,12 +391,8 @@ async def stream_muse_data():
                     "museConnected": False,
                     "message": "Muse stream lost. Reconnecting...",
                 }
-                for ws in active_connections:
-                    try:
-                        await ws.send_json(muse_disconnected_msg)
-                    except:
-                        pass
-                
+                await _broadcast_json(muse_disconnected_msg)
+
                 try:
                     streams = resolve_stream('type', 'EEG', timeout=2.0)
                 except:
@@ -322,11 +407,7 @@ async def stream_muse_data():
                         "museConnected": True,
                         "message": "Muse headset reconnected",
                     }
-                    for ws in active_connections:
-                        try:
-                            await ws.send_json(muse_connected_msg)
-                        except:
-                            pass
+                    await _broadcast_json(muse_connected_msg)
                 else:
                     error_msg = "Muse stream lost. Please reconnect your headset and restart LSL stream."
                     print(error_msg)
@@ -334,28 +415,24 @@ async def stream_muse_data():
                         "type": "error",
                         "message": error_msg,
                     }
-                    for ws in active_connections:
-                        try:
-                            await ws.send_json(error_message)
-                        except:
-                            pass
+                    await _broadcast_json(error_message)
                     # Wait and retry
                     await asyncio.sleep(2)
                     continue
-                    
+
             await asyncio.sleep(0.1)  # ~10Hz update rate
-            
+
     except Exception as e:
         print(f"Error in stream_muse_data: {e}")
         error_message = {
             "type": "error",
             "message": f"Backend error: {str(e)}",
         }
-        for ws in active_connections:
-            try:
-                await ws.send_json(error_message)
-            except:
-                pass
+        await _broadcast_json(error_message)
+    finally:
+        muse_stream = None
+        stream_active = False
+        mock_mode = False
 
 
 @app.websocket("/ws")
@@ -371,6 +448,8 @@ async def websocket_endpoint(websocket: WebSocket):
             "type": "connected",
             "message": "Connected to NeuroCoach backend",
             "museConnected": muse_stream is not None,
+            "mockMode": mock_mode,
+            "streamActive": stream_active,
         })
         
         # Start streaming if not already active
@@ -403,6 +482,7 @@ async def root():
         "status": "running",
         "connections": len(active_connections),
         "stream_active": stream_active,
+        "mock_mode": mock_mode,
     }
 
 
@@ -413,6 +493,7 @@ async def status():
         "connected": len(active_connections) > 0,
         "stream_active": stream_active,
         "muse_connected": muse_stream is not None,
+        "mock_mode": mock_mode,
     }
 
 
