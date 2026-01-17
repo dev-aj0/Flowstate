@@ -28,9 +28,9 @@ export interface SessionData {
 export interface UserProfile {
   name: string;
   diagnosis?: string;
-  calibrated: boolean;
-  focusThreshold: number;
-  distractionThreshold: number;
+  calibrated?: boolean;
+  focusThreshold?: number;
+  distractionThreshold?: number;
 }
 
 export interface CalibrationData {
@@ -41,6 +41,11 @@ export interface CalibrationData {
   distractionBaseline: {
     beta: number;
     alpha: number;
+  };
+  thresholds?: {
+    focusRatio: number;
+    relaxRatio: number;
+    ratioThreshold: number;
   };
 }
 

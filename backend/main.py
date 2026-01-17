@@ -78,6 +78,9 @@ BUFFER_SIZE = 256  # ~1 second at 256Hz
 # Baseline values for focus detection
 baseline_alpha = 50.0
 baseline_beta = 60.0
+calibration_data: Optional[dict] = None
+calibration_ratio_threshold = 1.2
+calibration_relax_alpha: Optional[float] = None
 
 rng = np.random.default_rng()
 MOCK_SAMPLE_RATE = 256.0
@@ -141,7 +144,7 @@ def process_eeg_sample(sample_buffer: List[float], fs: float) -> dict:
 
 def analyze_focus_state(reading: dict) -> dict:
     """Analyze focus state from EEG reading"""
-    global baseline_alpha, baseline_beta
+    global baseline_alpha, baseline_beta, calibration_data, calibration_ratio_threshold, calibration_relax_alpha
 
     alpha = reading["alpha"]
     beta = reading["beta"]
@@ -156,24 +159,96 @@ def analyze_focus_state(reading: dict) -> dict:
     
     # Update baseline (simple moving average) only if we have real data
     if alpha > 0 and beta > 0:
-        baseline_alpha = baseline_alpha * 0.95 + alpha * 0.05
+        if calibration_relax_alpha is not None:
+            # When calibrated, keep baseline center near calibrated values but still react slowly
+            baseline_alpha = baseline_alpha * 0.98 + calibration_relax_alpha * 0.02
+        else:
+            baseline_alpha = baseline_alpha * 0.95 + alpha * 0.05
         baseline_beta = baseline_beta * 0.95 + beta * 0.05
     
     # Focus detection: Beta/Alpha ratio
     ratio = beta / alpha if alpha > 0 else 0
-    is_focused = ratio > 1.2 if ratio > 0 else False
+    ratio_threshold = calibration_ratio_threshold if calibration_data else 1.2
+    is_focused = ratio >= ratio_threshold if ratio > 0 else False
     
     # Confidence based on ratio
-    confidence = min(abs(ratio - 1) / 1.5, 1.0) if ratio > 0 else 0.0
+    # Confidence increases as ratio diverges from threshold (either direction)
+    if ratio > 0:
+        diff = abs(ratio - ratio_threshold)
+        confidence = min(diff / max(ratio_threshold * 0.75, 0.01), 1.0)
+    else:
+        confidence = 0.0
     
     # Alert if alpha spike detected (>40% above baseline)
-    alpha_spike = alpha > (baseline_alpha * 1.4) if baseline_alpha > 0 else False
+    alpha_reference = calibration_relax_alpha if calibration_relax_alpha is not None else baseline_alpha
+    alpha_spike = alpha > (alpha_reference * 1.4) if alpha_reference > 0 else False
     alert_triggered = alpha_spike and not is_focused
     
     return {
         "isFocused": is_focused,
         "confidence": float(confidence),
         "alertTriggered": alert_triggered,
+    }
+
+
+def apply_calibration(calibration: dict) -> dict:
+    """
+    Apply calibration data received from frontend.
+    Expected structure:
+    {
+        "focusBaseline": {"beta": float, "alpha": float},
+        "distractionBaseline": {"beta": float, "alpha": float},
+        "thresholds": {"focusRatio": float, "relaxRatio": float}
+    }
+    """
+    global baseline_alpha, baseline_beta, calibration_data, calibration_ratio_threshold, calibration_relax_alpha
+
+    focus_baseline = calibration.get("focusBaseline", {})
+    distraction_baseline = calibration.get("distractionBaseline", {})
+    thresholds = calibration.get("thresholds", {})
+
+    focus_beta = float(focus_baseline.get("beta", baseline_beta))
+    focus_alpha = float(focus_baseline.get("alpha", baseline_alpha))
+    relax_beta = float(distraction_baseline.get("beta", baseline_beta))
+    relax_alpha = float(distraction_baseline.get("alpha", baseline_alpha))
+
+    focus_ratio = float(thresholds.get("focusRatio", focus_beta / focus_alpha if focus_alpha > 0 else 1.4))
+    relax_ratio = float(thresholds.get("relaxRatio", relax_beta / relax_alpha if relax_alpha > 0 else 0.9))
+
+    # Clamp ratios to reasonable ranges
+    focus_ratio = max(0.5, min(focus_ratio, 4.0))
+    relax_ratio = max(0.3, min(relax_ratio, 3.0))
+
+    # Use midpoint between focus and relax ratios as threshold
+    calibration_ratio_threshold = (focus_ratio + relax_ratio) / 2.0 if focus_ratio > 0 and relax_ratio > 0 else 1.2
+
+    # Update baselines - focused beta should be higher, relaxed alpha should be higher
+    baseline_beta = focus_beta if focus_beta > 0 else baseline_beta
+    baseline_alpha = relax_alpha if relax_alpha > 0 else baseline_alpha
+    calibration_relax_alpha = relax_alpha if relax_alpha > 0 else None
+
+    calibration_data = {
+        "focusBaseline": {
+            "beta": baseline_beta,
+            "alpha": focus_alpha,
+        },
+        "distractionBaseline": {
+            "beta": relax_beta,
+            "alpha": baseline_alpha,
+        },
+        "thresholds": {
+            "focusRatio": focus_ratio,
+            "relaxRatio": relax_ratio,
+            "ratioThreshold": calibration_ratio_threshold,
+        },
+    }
+
+    return {
+        "ratioThreshold": calibration_ratio_threshold,
+        "baselineAlpha": baseline_alpha,
+        "baselineBeta": baseline_beta,
+        "focusRatio": focus_ratio,
+        "relaxRatio": relax_ratio,
     }
 
 
@@ -462,8 +537,47 @@ async def websocket_endpoint(websocket: WebSocket):
                 data = await websocket.receive_text()
                 # Handle client messages if needed
                 message = json.loads(data)
-                if message.get("type") == "ping":
+                msg_type = message.get("type")
+                if msg_type == "ping":
                     await websocket.send_json({"type": "pong"})
+                elif msg_type == "calibration_update":
+                    calibration = message.get("calibration")
+                    if calibration:
+                        applied = apply_calibration(calibration)
+                        await websocket.send_json({
+                            "type": "calibration_ack",
+                            "status": "applied",
+                            "payload": applied,
+                        })
+                        # Inform other clients of calibration change
+                        await _broadcast_json({
+                            "type": "calibration_status",
+                            "calibrated": True,
+                            "payload": applied,
+                        })
+                elif msg_type == "calibration_reset":
+                    # Reset to defaults
+                    baseline_alpha_default = 50.0
+                    baseline_beta_default = 60.0
+                    global baseline_alpha, baseline_beta, calibration_data, calibration_ratio_threshold, calibration_relax_alpha
+                    baseline_alpha = baseline_alpha_default
+                    baseline_beta = baseline_beta_default
+                    calibration_ratio_threshold = 1.2
+                    calibration_relax_alpha = None
+                    calibration_data = None
+                    await websocket.send_json({
+                        "type": "calibration_ack",
+                        "status": "reset",
+                        "payload": {
+                            "ratioThreshold": calibration_ratio_threshold,
+                            "baselineAlpha": baseline_alpha,
+                            "baselineBeta": baseline_beta,
+                        },
+                    })
+                    await _broadcast_json({
+                        "type": "calibration_status",
+                        "calibrated": False,
+                    })
             except WebSocketDisconnect:
                 break
                 

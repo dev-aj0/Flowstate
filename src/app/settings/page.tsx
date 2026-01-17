@@ -2,14 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { Volume2, VolumeX, Bell, Moon, Sun, Clock, User, Bluetooth } from 'lucide-react';
-import { getSettings, saveSettings, getUserProfile, saveUserProfile } from '@/lib/storage';
-import { AppSettings } from '@/types';
+import { getSettings, saveSettings, getUserProfile, saveUserProfile, getCalibration } from '@/lib/storage';
+import { AppSettings, CalibrationData, UserProfile } from '@/types';
+import { CalibrationDialog } from '@/components/calibration-dialog';
 import { CustomSelect } from '@/components/ui/custom-select';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(getSettings());
-  const [profile, setProfile] = useState(getUserProfile());
+  const [profile, setProfile] = useState<UserProfile>(getUserProfile());
   const [saved, setSaved] = useState(false);
+  const [calibrationOpen, setCalibrationOpen] = useState(false);
+  const [calibrationData, setCalibrationData] = useState<CalibrationData | null>(getCalibration());
 
   // Apply initial mode on mount
   useEffect(() => {
@@ -50,15 +53,22 @@ export default function SettingsPage() {
   };
 
   const handleProfileChange = (key: string, value: any) => {
-    const newProfile = { ...profile, [key]: value };
+    const newProfile = { ...profile, [key]: value } as UserProfile;
     setProfile(newProfile);
-    saveUserProfile(newProfile as any);
+    saveUserProfile(newProfile);
     showSavedMessage();
   };
 
   const showSavedMessage = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleCalibrationComplete = (data: CalibrationData) => {
+    setCalibrationData(data);
+    const updatedProfile = getUserProfile();
+    setProfile(updatedProfile);
+    showSavedMessage();
   };
 
   return (
@@ -295,13 +305,48 @@ export default function SettingsPage() {
       <div className="glass-card p-6 bg-[#3b82f6]/5 border-[#3b82f6]/20">
         <h3 className="text-lg font-semibold mb-4">⚙️ Calibration</h3>
         <p className="text-sm text-muted-foreground mb-4">
-          Calibrate your focus thresholds for more accurate detection. This involves a 5-minute
-          focused task followed by 5 minutes of relaxation.
+          Personalize distraction alerts with a guided focus + relaxation calibration. Run it anytime you feel your
+          thresholds need a refresh.
         </p>
-        <button className="px-6 py-3 rounded-lg bg-[#3b82f6] text-white font-medium hover:opacity-90 transition-opacity">
+        <div className="space-y-3 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between">
+            <span>Status</span>
+            <span className={`font-semibold ${profile.calibrated ? 'text-[#22c55e]' : 'text-[#f97316]'}`}>
+              {profile.calibrated ? 'Calibrated' : 'Not calibrated'}
+            </span>
+          </div>
+          {calibrationData?.thresholds && (
+            <div className="grid grid-cols-2 gap-3 mt-2 text-[11px] text-muted-foreground">
+              <div className="p-3 rounded-lg glass-card-strong">
+                <p className="font-medium text-foreground mb-1">Focus baseline</p>
+                <p>β: {calibrationData.focusBaseline.beta.toFixed(1)}</p>
+                <p>α: {calibrationData.focusBaseline.alpha.toFixed(1)}</p>
+              </div>
+              <div className="p-3 rounded-lg glass-card-strong">
+                <p className="font-medium text-foreground mb-1">Relax baseline</p>
+                <p>β: {calibrationData.distractionBaseline.beta.toFixed(1)}</p>
+                <p>α: {calibrationData.distractionBaseline.alpha.toFixed(1)}</p>
+              </div>
+              <div className="p-3 rounded-lg glass-card-strong col-span-2">
+                <p className="font-medium text-foreground mb-1">Detection threshold</p>
+                <p>β/α ≥ {(calibrationData.thresholds?.ratioThreshold ?? profile.focusThreshold ?? 1.2).toFixed(3)}</p>
+              </div>
+            </div>
+          )}
+        </div>
+        <button
+          onClick={() => setCalibrationOpen(true)}
+          className="mt-4 px-6 py-3 rounded-lg bg-[#3b82f6] text-white font-medium hover:opacity-90 transition-opacity"
+        >
           Start Calibration
         </button>
       </div>
+
+      <CalibrationDialog
+        open={calibrationOpen}
+        onOpenChange={setCalibrationOpen}
+        onComplete={handleCalibrationComplete}
+      />
     </div>
   );
 }

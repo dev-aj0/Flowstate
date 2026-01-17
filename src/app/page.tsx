@@ -6,11 +6,11 @@ import { StatCard } from '@/components/stat-card';
 import { FocusMeter } from '@/components/focus-meter';
 import Link from 'next/link';
 import { getSessions, getUserProfile } from '@/lib/storage';
-import { SessionData } from '@/types';
+import { SessionData, UserProfile } from '@/types';
 import { useEEGStream } from '@/hooks/use-eeg-stream';
 
 export default function Dashboard() {
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<UserProfile>(getUserProfile());
   const [sessions, setSessions] = useState<SessionData[]>([]);
   const [todayFocus, setTodayFocus] = useState(0);
   const [totalSessions, setTotalSessions] = useState(0);

@@ -19,7 +19,7 @@ export function EEGWaveform({ readings, height = 200, showLegend = true }: EEGWa
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size
+    // Set canvas size  
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * window.devicePixelRatio;
     canvas.height = height * window.devicePixelRatio;

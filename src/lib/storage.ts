@@ -9,16 +9,42 @@ const STORAGE_KEYS = {
   CALIBRATION: 'neuro_coach_calibration',
 };
 
+// Defaults
+const defaultProfile: UserProfile = {
+  name: '',
+  calibrated: false,
+  focusThreshold: 1.2,
+  distractionThreshold: 0.9,
+};
+
+const defaultSettings: AppSettings = {
+  soundEnabled: true,
+  alertStyle: 'all',
+  mode: 'dark',
+  sessionDuration: 25,
+  theme: 'default',
+};
+
 // User Profile
-export function getUserProfile(): UserProfile | null {
-  if (typeof window === 'undefined') return null;
+export function getUserProfile(): UserProfile {
+  if (typeof window === 'undefined') return { ...defaultProfile };
   const data = localStorage.getItem(STORAGE_KEYS.USER_PROFILE);
-  return data ? JSON.parse(data) : null;
+  if (!data) {
+    return { ...defaultProfile };
+  }
+  try {
+    const parsed = JSON.parse(data);
+    return { ...defaultProfile, ...parsed };
+  } catch (error) {
+    console.warn('Failed to parse stored user profile. Resetting to defaults.', error);
+    return { ...defaultProfile };
+  }
 }
 
-export function saveUserProfile(profile: UserProfile) {
+export function saveUserProfile(profile: Partial<UserProfile>) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(profile));
+  const merged = { ...defaultProfile, ...(profile || {}) };
+  localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(merged));
 }
 
 // Sessions
@@ -60,27 +86,24 @@ export function clearSessions() {
 // Settings
 export function getSettings(): AppSettings {
   if (typeof window === 'undefined') {
-    return {
-      soundEnabled: true,
-      alertStyle: 'all',
-      mode: 'dark',
-      sessionDuration: 25,
-      theme: 'default',
-    };
+    return { ...defaultSettings };
   }
   const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-  return data ? JSON.parse(data) : {
-    soundEnabled: true,
-    alertStyle: 'all',
-    mode: 'dark',
-    sessionDuration: 25,
-    theme: 'default',
-  };
+  if (!data) {
+    return { ...defaultSettings };
+  }
+  try {
+    return { ...defaultSettings, ...JSON.parse(data) };
+  } catch (error) {
+    console.warn('Failed to parse settings. Resetting to defaults.', error);
+    return { ...defaultSettings };
+  }
 }
 
 export function saveSettings(settings: AppSettings) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+  const merged = { ...defaultSettings, ...settings };
+  localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
 }
 
 // Calibration
