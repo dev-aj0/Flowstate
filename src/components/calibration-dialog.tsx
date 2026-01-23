@@ -5,14 +5,15 @@ import { Brain, CheckCircle2, Hourglass, Info, PauseCircle, Play, RefreshCw, Spa
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { saveCalibration, saveUserProfile, getUserProfile } from '@/lib/storage';
-import { CalibrationData, UserProfile } from '@/types';
+import { saveCalibration, saveUserProfile, getUserProfile, saveSettings, getSettings } from '@/lib/storage';
+import { CalibrationData, UserProfile, EEGReading } from '@/types';
 import { wsManager } from '@/lib/websocket-manager';
 import { useEEGStream } from '@/hooks/use-eeg-stream';
+import { getLLMOptimizedTimer } from '@/lib/timer-optimizer';
 
 type CalibrationPhase = 'intro' | 'focus' | 'relax' | 'processing' | 'complete' | 'error';
 
-type CalibrationPresetKey = 'standard' | 'quick';
+type CalibrationPresetKey = 'standard' | 'quick' | 'diagnosis';
 
 const CALIBRATION_PRESETS: Record<CalibrationPresetKey, { focus: number; relax: number; label: string; description: string }> = {
   standard: {
@@ -26,6 +27,12 @@ const CALIBRATION_PRESETS: Record<CalibrationPresetKey, { focus: number; relax: 
     relax: 90,
     label: 'Quick (90 sec / phase)',
     description: 'Use when testing or short on time.',
+  },
+  diagnosis: {
+    focus: 3600, // 1 hour
+    relax: 300, // Still 5 min for relax phase
+    label: 'Diagnosis (1 hour focus + 5 min relax)',
+    description: 'Comprehensive analysis. AI will analyze patterns and set optimal Pomodoro timer after completion.',
   },
 };
 
@@ -63,8 +70,12 @@ export function CalibrationDialog({ open, onOpenChange, onComplete }: Calibratio
     relax: { alpha: [], beta: [] },
   });
 
+  // For diagnosis sessions, track all readings and focus history
+  const diagnosisReadingsRef = useRef<EEGReading[]>([]);
+  const diagnosisFocusHistoryRef = useRef<number[]>([]);
+
   const activePhase = phase === 'focus' || phase === 'relax';
-  const { currentReading, museConnected, connectionError } = useEEGStream(open && activePhase);
+  const { currentReading, focusState, museConnected, connectionError } = useEEGStream(open && activePhase);
 
   useEffect(() => {
     if (!open) {
@@ -75,6 +86,8 @@ export function CalibrationDialog({ open, onOpenChange, onComplete }: Calibratio
         focus: { alpha: [], beta: [] },
         relax: { alpha: [], beta: [] },
       };
+      diagnosisReadingsRef.current = [];
+      diagnosisFocusHistoryRef.current = [];
       setCalibrationResult(null);
       return;
     }
@@ -100,12 +113,20 @@ export function CalibrationDialog({ open, onOpenChange, onComplete }: Calibratio
       if (phase === 'focus') {
         snapshot.focus.alpha.push(currentReading.alpha);
         snapshot.focus.beta.push(currentReading.beta);
+        
+        // Track full readings and focus history for diagnosis sessions
+        if (preset === 'diagnosis') {
+          diagnosisReadingsRef.current.push(currentReading);
+          if (focusState && focusState.confidence > 0) {
+            diagnosisFocusHistoryRef.current.push(focusState.confidence * 100);
+          }
+        }
       } else if (phase === 'relax') {
         snapshot.relax.alpha.push(currentReading.alpha);
         snapshot.relax.beta.push(currentReading.beta);
       }
     }
-  }, [currentReading.timestamp, currentReading.alpha, currentReading.beta, open, activePhase, phase]);
+  }, [currentReading.timestamp, currentReading.alpha, currentReading.beta, open, activePhase, phase, preset, focusState]);
 
   useEffect(() => {
     if (!open) return;
@@ -198,6 +219,40 @@ export function CalibrationDialog({ open, onOpenChange, onComplete }: Calibratio
         type: 'calibration_update',
         calibration,
       });
+
+      // If diagnosis session, analyze with LLM and update Pomodoro timer settings
+      if (preset === 'diagnosis' && diagnosisReadingsRef.current.length > 30 && diagnosisFocusHistoryRef.current.length > 30) {
+        // Calculate total time (focus + relax phases)
+        const totalTimeSeconds = durations.focus + durations.relax;
+        
+        getLLMOptimizedTimer(
+          diagnosisReadingsRef.current,
+          diagnosisFocusHistoryRef.current,
+          totalTimeSeconds,
+          profile
+        ).then(llmResult => {
+          if (llmResult && llmResult.source === 'llm') {
+            // Update settings with LLM-optimized timer
+            const currentSettings = getSettings();
+            saveSettings({
+              ...currentSettings,
+              sessionDuration: llmResult.focusDuration,
+            });
+            
+            // Save optimized break duration to profile or settings
+            const updatedProfile = {
+              ...nextProfile,
+            };
+            saveUserProfile(updatedProfile);
+            
+            console.log('🤖 AI Analysis complete:', llmResult.reasoning);
+            console.log(`Optimal Timer: ${llmResult.focusDuration} min focus, ${llmResult.breakDuration} min break`);
+          }
+        }).catch(err => {
+          console.warn('LLM analysis failed, using calibration only:', err);
+        });
+      }
+      
       setPhase('complete');
     } catch (err) {
       console.error('Failed to save calibration', err);
@@ -264,7 +319,7 @@ export function CalibrationDialog({ open, onOpenChange, onComplete }: Calibratio
 
             <div className="space-y-3">
               <p className="text-sm font-medium text-foreground">Duration</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {(Object.keys(CALIBRATION_PRESETS) as CalibrationPresetKey[]).map((key) => {
                   const option = CALIBRATION_PRESETS[key];
                   const isActive = preset === key;

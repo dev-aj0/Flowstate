@@ -6,6 +6,7 @@ import { getSettings, saveSettings, getUserProfile, saveUserProfile, getCalibrat
 import { AppSettings, CalibrationData, UserProfile } from '@/types';
 import { CalibrationDialog } from '@/components/calibration-dialog';
 import { CustomSelect } from '@/components/ui/custom-select';
+import { useEEGStream } from '@/hooks/use-eeg-stream';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(getSettings());
@@ -13,6 +14,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [calibrationOpen, setCalibrationOpen] = useState(false);
   const [calibrationData, setCalibrationData] = useState<CalibrationData | null>(getCalibration());
+  const { museConnected, connectionError } = useEEGStream(false);
 
   // Apply initial mode on mount
   useEffect(() => {
@@ -276,17 +278,25 @@ export default function SettingsPage() {
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 rounded-lg bg-[#22c55e]/10 border border-[#22c55e]/20">
+          <div className={`flex items-center justify-between p-4 rounded-lg border ${
+            museConnected 
+              ? 'bg-[#22c55e]/10 border-[#22c55e]/20' 
+              : 'bg-[#f97316]/10 border-[#f97316]/20'
+          }`}>
             <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse" />
+              <div className={`w-2 h-2 rounded-full ${museConnected ? 'bg-[#22c55e] animate-pulse' : 'bg-[#f97316]'}`} />
               <div>
                 <p className="font-medium">Muse 2 Headset</p>
-                <p className="text-sm text-muted-foreground">Connected via Bluetooth</p>
+                <p className="text-sm text-muted-foreground">
+                  {museConnected ? 'Connected via Bluetooth' : 'Not Connected - Using mock data'}
+                </p>
               </div>
             </div>
-            <button className="px-4 py-2 rounded-lg glass-card text-sm hover:bg-white/10 dark:hover:bg-white/10 light:hover:bg-black/5 transition-colors">
-              Disconnect
-            </button>
+            {connectionError && (
+              <div className="text-xs text-[#f97316] max-w-xs text-right">
+                {connectionError}
+              </div>
+            )}
           </div>
 
           <div className="p-4 rounded-lg glass-card-strong">
@@ -349,4 +359,5 @@ export default function SettingsPage() {
       />
     </div>
   );
+}
 }

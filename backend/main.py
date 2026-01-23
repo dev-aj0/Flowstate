@@ -5,6 +5,7 @@ Handles Muse headset connection via LSL and streams EEG data to frontend via Web
 
 import asyncio
 import importlib
+import importlib.util
 import json
 import os
 import time
