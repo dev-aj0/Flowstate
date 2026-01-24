@@ -124,7 +124,7 @@ export default function SettingsPage() {
               ]}
             />
             <p className="text-xs text-muted-foreground mt-2">
-              This helps adjust focus thresholds for better accuracy
+              Optional: Self-report if you have a condition to optimize timer settings (not for diagnosis)
             </p>
           </div>
         </div>

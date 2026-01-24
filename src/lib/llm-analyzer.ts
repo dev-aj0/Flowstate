@@ -18,6 +18,8 @@ export interface EEGDataSummary {
   averageBeta: number;
   averageAlpha: number;
   averageGamma: number;
+  averageDelta: number;
+  averageTheta: number;
   betaVariability: number;
   alphaSpikes: number;
   focusPercentage: number;
@@ -39,6 +41,8 @@ export function summarizeEEGData(
       averageBeta: 0,
       averageAlpha: 0,
       averageGamma: 0,
+      averageDelta: 0,
+      averageTheta: 0,
       betaVariability: 0,
       alphaSpikes: 0,
       focusPercentage: 0,
@@ -50,10 +54,14 @@ export function summarizeEEGData(
   const betas = readings.map(r => r.beta);
   const alphas = readings.map(r => r.alpha);
   const gammas = readings.map(r => r.gamma);
+  const deltas = readings.map(r => r.delta);
+  const thetas = readings.map(r => r.theta);
 
   const averageBeta = betas.reduce((sum, v) => sum + v, 0) / betas.length;
   const averageAlpha = alphas.reduce((sum, v) => sum + v, 0) / alphas.length;
   const averageGamma = gammas.reduce((sum, v) => sum + v, 0) / gammas.length;
+  const averageDelta = deltas.reduce((sum, v) => sum + v, 0) / deltas.length;
+  const averageTheta = thetas.reduce((sum, v) => sum + v, 0) / thetas.length;
 
   // Calculate variability (standard deviation)
   const betaMean = averageBeta;
@@ -102,6 +110,8 @@ export function summarizeEEGData(
     averageBeta,
     averageAlpha,
     averageGamma,
+    averageDelta,
+    averageTheta,
     betaVariability,
     alphaSpikes,
     focusPercentage: avgFocus,
@@ -121,32 +131,62 @@ function createAnalysisPrompt(
 ): string {
   const diagnosis = profile?.diagnosis || 'none';
   const diagnosisContext = diagnosis !== 'none' 
-    ? `The user has a diagnosis of ${diagnosis.toUpperCase()}, which may affect attention patterns.`
-    : 'No specific diagnosis recorded.';
+    ? `User has self-reported: ${diagnosis.toUpperCase()} (used for timer optimization only, not for diagnosis)`
+    : 'No user-reported condition.';
 
-  return `You are a neuroscientist and focus coach analyzing EEG brainwave data to optimize Pomodoro timer settings.
+  return `You are a neuroscientist analyzing EEG brainwave patterns to optimize Pomodoro timer settings.
 
-**User Context:**
-${diagnosisContext}
-Historical sessions completed: ${historicalSessions}
+**Primary Analysis - Brainwave Patterns:**
+Analyze the following EEG data to determine when focus drops and optimal work duration:
 
-**Current Session EEG Data (${Math.round(eegSummary.sessionLength / 60)} minutes):**
-- Average Beta waves (focus): ${eegSummary.averageBeta.toFixed(1)}%
-- Average Alpha waves (relaxation): ${eegSummary.averageAlpha.toFixed(1)}%
-- Average Gamma waves (active thinking): ${eegSummary.averageGamma.toFixed(1)}%
-- Beta variability (consistency): ${eegSummary.betaVariability.toFixed(1)}%
-- Alpha spikes (distraction events): ${eegSummary.alphaSpikes}
+**EEG Brainwave Metrics:**
+- Beta waves (focus/alertness): ${eegSummary.averageBeta.toFixed(1)}% average
+- Alpha waves (relaxation/distraction): ${eegSummary.averageAlpha.toFixed(1)}% average
+- Gamma waves (active thinking): ${eegSummary.averageGamma.toFixed(1)}% average
+- Theta waves (drowsiness/daydreaming): ${eegSummary.averageTheta.toFixed(1)}% average
+- Delta waves (deep relaxation/sleep): ${eegSummary.averageDelta.toFixed(1)}% average
+- Beta/Alpha ratio: ${(eegSummary.averageBeta / (eegSummary.averageAlpha || 1)).toFixed(2)} (higher = more focused)
+- Beta variability: ${eegSummary.betaVariability.toFixed(1)}% (consistency of focus)
+
+**Focus Decay Analysis:**
 - Average focus percentage: ${eegSummary.focusPercentage.toFixed(1)}%
-- Sustained focus duration: ${Math.round(eegSummary.sustainedFocusTime / 60)} minutes
-${eegSummary.decayPoint ? `- Focus decay point: ${Math.round(eegSummary.decayPoint / 60)} minutes` : '- No significant decay detected yet'}
+- Sustained focus duration: ${Math.round(eegSummary.sustainedFocusTime / 60)} minutes (how long focus was maintained)
+${eegSummary.decayPoint ? `- Focus decay point: ${Math.round(eegSummary.decayPoint / 60)} minutes (when focus dropped significantly)` : '- No significant decay detected yet'}
+- Alpha spikes (distraction events): ${eegSummary.alphaSpikes} (alpha waves spiking >40% above average)
 
-**Analysis Required:**
-Analyze these brainwave patterns and provide optimal Pomodoro timer settings. Consider:
-1. How long the user can maintain focus before attention decays
-2. When alpha spikes (distraction) occur most frequently
-3. Beta/Alpha ratio patterns indicating optimal work duration
-4. Individual differences (diagnosis, variability patterns)
-5. Recovery time needed between sessions (break duration)
+**Session Context:**
+- Session length: ${Math.round(eegSummary.sessionLength / 60)} minutes
+${diagnosisContext !== 'No user-reported condition.' ? `- User context: ${diagnosisContext}` : ''}
+- Historical sessions: ${historicalSessions}
+
+**Analysis Instructions:**
+PRIMARY: Analyze the brainwave patterns above to determine optimal timer settings:
+
+1. **Optimal focus duration**: 
+   - When do Beta waves drop significantly? (indicates focus loss)
+   - When do Alpha spikes occur? (indicates distraction)
+   - When do Theta/Delta waves increase? (indicates drowsiness/over-relaxation)
+   - Use the "sustained focus duration" and "focus decay point" as key indicators
+
+2. **Beta/Alpha ratio analysis**: 
+   - What Beta/Alpha ratio indicates focused state vs distracted?
+   - Higher Beta relative to Alpha = more focused
+   - When Alpha exceeds Beta = distraction/relaxation
+
+3. **Focus sustainability**: 
+   - How long can focus be maintained before decay? (use sustained focus duration)
+   - When does focus drop below 70% of peak? (decay point)
+
+4. **Distraction patterns**: 
+   - Count of Alpha spikes indicates distraction frequency
+   - High Theta/Delta may indicate drowsiness during focus sessions
+
+5. **Break duration**: 
+   - Based on focus intensity (Beta levels) and decay patterns
+   - Higher focus intensity = longer recovery needed
+   - More Alpha spikes = may need longer breaks
+
+**CRITICAL**: Base your recommendations primarily on the brainwave data patterns above. The user context is only secondary reference.
 
 **Response Format (JSON only):**
 {

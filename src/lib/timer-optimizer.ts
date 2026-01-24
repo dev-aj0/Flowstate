@@ -1,7 +1,7 @@
 /**
  * Timer Optimizer
  * Optimizes Pomodoro timer durations based on:
- * 1. User diagnosis (ADHD, Anxiety, etc.)
+ * 1. User self-reported condition (ADHD, Anxiety, etc.) - for timer optimization only, not diagnosis
  * 2. EEG focus patterns (how long user can maintain focus)
  * 3. Historical session data
  */
@@ -21,7 +21,8 @@ export interface OptimizedTimerSettings {
 }
 
 /**
- * Get optimized timer settings based on diagnosis
+ * Get optimized timer settings based on user self-reported condition
+ * (Used for timer optimization only, not for medical diagnosis)
  */
 export function getDiagnosisBasedTimer(profile: UserProfile | null): OptimizedTimerSettings {
   const diagnosis = profile?.diagnosis || '';
@@ -138,8 +139,8 @@ export function getOptimizedTimer(
   if (focusHistory.length > 10) {
     const patternAnalysis = analyzeFocusPatterns(focusHistory, currentTimeElapsed);
     
-    // Blend diagnosis recommendation with actual EEG data
-    // Weight: 60% diagnosis, 40% EEG patterns (if EEG shows different pattern)
+    // Blend user-reported condition recommendation with actual EEG data
+    // Weight: 60% condition-based settings, 40% EEG patterns (if EEG shows different pattern)
     const eegDuration = patternAnalysis.optimalDuration;
     const diagnosisDuration = diagnosisSettings.focusDuration;
     
