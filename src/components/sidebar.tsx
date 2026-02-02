@@ -16,7 +16,7 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { connected, museConnected } = useEEGStream(false);
+  const { connected, museConnected, mockMode } = useEEGStream(false);
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 glass-card-strong border-r border-white/10 dark:border-white/10 light:border-black/10 p-6 flex flex-col animate-fade-in">
@@ -61,13 +61,15 @@ export function Sidebar() {
           <div className="flex items-center gap-2 mb-2">
             <div className={`w-2 h-2 rounded-full ${museConnected ? 'bg-[#22c55e] animate-pulse' : 'bg-[#f97316]'}`} />
             <span className="text-sm font-medium text-foreground">
-              {museConnected ? 'Muse Connected' : 'Muse Not Connected'}
+              {museConnected ? 'Muse Connected' : mockMode ? 'Mock data (no Muse)' : 'Muse Not Connected'}
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
             {museConnected 
               ? 'Device ready for session' 
-              : 'Waiting for Muse headset'}
+              : mockMode 
+                ? 'Numbers are simulated' 
+                : 'Waiting for Muse headset'}
           </p>
         </div>
       </div>

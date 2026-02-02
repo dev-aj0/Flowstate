@@ -32,7 +32,7 @@ export default function SessionPage() {
   const [llmAnalyzing, setLlmAnalyzing] = useState(false);
   const [lastLlmAnalysis, setLastLlmAnalysis] = useState<{ time: number; reasoning?: string } | null>(null);
 
-  const { currentReading, focusState, history, resetHistory, connected, museConnected, connectionError } = useEEGStream(sessionActive);
+  const { currentReading, focusState, history, resetHistory, connected, museConnected, mockMode, connectionError } = useEEGStream(sessionActive);
   
   // Compute current timer duration based on break state and optimizations
   const currentTimerDuration = isBreak 
@@ -221,8 +221,9 @@ export default function SessionPage() {
     }, 3000);
   };
 
-  // Only show focus percentage if Muse is connected, otherwise show 0
-  const currentFocusPercentage = museConnected ? focusState.confidence * 100 : 0;
+  // Show live data when Muse connected, backend says mock, or user just enabled mock in Settings (so UI updates immediately)
+  const hasLiveData = museConnected || mockMode || !!getSettings().useMockData;
+  const currentFocusPercentage = hasLiveData ? focusState.confidence * 100 : 0;
   const avgFocus = focusHistory.length > 0
     ? focusHistory.reduce((sum, val) => sum + val, 0) / focusHistory.length
     : 0;
@@ -304,24 +305,29 @@ export default function SessionPage() {
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Muse</span>
                 <span className={`text-sm font-medium transition-colors ${museConnected ? 'text-[#22c55e]' : 'text-[#f97316]'}`}>
-                  {museConnected ? '✓ Connected' : '○ Not Connected'}
+                  {museConnected ? '✓ Connected' : mockMode ? '○ Mock data (no headset)' : '○ Not Connected'}
                 </span>
               </div>
-              {connectionError && (
+              {mockMode && (
+                <div className="text-xs text-amber-500 dark:text-amber-400 font-medium">
+                  Numbers are simulated — connect Muse + BlueMuse for real brainwaves
+                </div>
+              )}
+              {connectionError && !mockMode && (
                 <div className="text-xs text-[#f97316] mt-1">
                   {connectionError}
                 </div>
               )}
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Status</span>
-                <span className={`text-sm font-medium transition-colors ${focusState.isFocused ? 'text-[#22c55e]' : 'text-[#f97316]'}`}>
-                  {focusState.isFocused ? '✓ Focused' : '○ Relaxed'}
+                <span className={`text-sm font-medium transition-colors ${!hasLiveData ? 'text-muted-foreground' : focusState.isFocused ? 'text-[#22c55e]' : 'text-[#f97316]'}`}>
+                  {!hasLiveData ? '— No data' : focusState.isFocused ? '✓ Focused' : '○ Relaxed'}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Confidence</span>
                 <span className="text-sm font-medium text-foreground">
-                  {Math.round(focusState.confidence * 100)}%
+                  {!hasLiveData ? '—' : `${Math.round(focusState.confidence * 100)}%`}
                 </span>
               </div>
             </div>
@@ -357,7 +363,7 @@ export default function SessionPage() {
                   <Activity className="w-4 h-4 text-[#22c55e]" />
                   <span className="text-sm text-muted-foreground">Data Points</span>
                 </div>
-                <span className="text-lg font-semibold text-foreground">{history.length}</span>
+                <span className="text-lg font-semibold text-foreground">{hasLiveData ? history.length : 0}</span>
               </div>
             </div>
           </div>
@@ -368,29 +374,72 @@ export default function SessionPage() {
           {/* EEG Waveform */}
           <div className="glass-card p-6 animate-scale-in stagger-3">
             <h2 className="text-lg font-semibold text-foreground mb-4">Live EEG Waveform</h2>
-            <EEGWaveform readings={history} height={250} />
-            
-            {/* Wave Values */}
-            <div className="grid grid-cols-3 gap-4 mt-6">
-              <div className="glass-card p-4 text-center hover-lift">
-                <div className="text-2xl font-bold text-[#3b82f6] mb-1">
-                  {Math.round(currentReading.beta)}
+            {hasLiveData ? (
+              <>
+                <EEGWaveform readings={history} height={250} />
+                {/* Wave Values */}
+                <div className="grid grid-cols-3 gap-4 mt-6">
+                  <div className="glass-card p-4 text-center hover-lift">
+                    <div className="text-2xl font-bold text-[#3b82f6] mb-1">
+                      {Math.round(currentReading.beta)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Beta (Focus)</div>
+                  </div>
+                  <div className="glass-card p-4 text-center hover-lift">
+                    <div className="text-2xl font-bold text-[#f97316] mb-1">
+                      {Math.round(currentReading.alpha)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Alpha (Relax)</div>
+                  </div>
+                  <div className="glass-card p-4 text-center hover-lift">
+                    <div className="text-2xl font-bold text-[#22c55e] mb-1">
+                      {Math.round(currentReading.gamma)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Gamma</div>
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground">Beta (Focus)</div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 px-4 rounded-lg bg-white/5 dark:bg-white/5 light:bg-black/5 border border-dashed border-white/10 dark:border-white/10 light:border-black/10">
+                <p className="text-sm text-muted-foreground text-center mb-2">No live data</p>
+                <p className="text-xs text-muted-foreground text-center max-w-xs">
+                  Connect your Muse headset (BlueMuse) or enable mock data in Settings to see the waveform.
+                </p>
               </div>
-              <div className="glass-card p-4 text-center hover-lift">
-                <div className="text-2xl font-bold text-[#f97316] mb-1">
-                  {Math.round(currentReading.alpha)}
+            )}
+
+            {/* Per-channel / LSL-style data (when Muse sends it) */}
+            {hasLiveData && (currentReading.channels?.length ?? 0) > 0 && (
+              <div className="mt-6 pt-4 border-t border-white/10 dark:border-white/10">
+                <h3 className="text-sm font-semibold text-foreground mb-3">Per-channel (LSL)</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {currentReading.channels!.map((ch) => (
+                    <div key={ch.name} className="glass-card p-3 rounded-lg">
+                      <div className="text-xs font-medium text-foreground mb-2">{ch.name}</div>
+                      <div className="grid grid-cols-2 gap-1 text-[10px]">
+                        <span className="text-muted-foreground">α</span><span>{Math.round(ch.alpha)}</span>
+                        <span className="text-muted-foreground">β</span><span>{Math.round(ch.beta)}</span>
+                        <span className="text-muted-foreground">γ</span><span>{Math.round(ch.gamma)}</span>
+                        <span className="text-muted-foreground">δ</span><span>{Math.round(ch.delta)}</span>
+                        <span className="text-muted-foreground">θ</span><span>{Math.round(ch.theta)}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="text-xs text-muted-foreground">Alpha (Relax)</div>
               </div>
-              <div className="glass-card p-4 text-center hover-lift">
-                <div className="text-2xl font-bold text-[#22c55e] mb-1">
-                  {Math.round(currentReading.gamma)}
+            )}
+            {hasLiveData && (currentReading.rawChannels?.length ?? 0) > 0 && (
+              <div className="mt-4">
+                <h3 className="text-sm font-semibold text-foreground mb-2">Raw sample (latest)</h3>
+                <div className="flex flex-wrap gap-2">
+                  {(currentReading.channelNames ?? []).map((name, i) => (
+                    <span key={name} className="px-2 py-1 rounded bg-white/10 dark:bg-white/10 text-xs font-mono">
+                      {name}: {(currentReading.rawChannels![i] ?? 0).toFixed(4)}
+                    </span>
+                  ))}
                 </div>
-                <div className="text-xs text-muted-foreground">Gamma</div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Controls + Pomodoro */}

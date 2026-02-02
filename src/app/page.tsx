@@ -18,7 +18,7 @@ export default function Dashboard() {
   const [focusStreak, setFocusStreak] = useState(0);
   
   // Check backend and Muse connection status (not active session, just checking connection)
-  const { connected, museConnected, connectionError, focusState, currentReading } = useEEGStream(false);
+  const { connected, museConnected, mockMode, connectionError, focusState, currentReading } = useEEGStream(false);
 
   useEffect(() => {
     const userProfile = getUserProfile();
@@ -114,10 +114,10 @@ export default function Dashboard() {
         <div className="glass-card p-8 animate-scale-in">
           <h2 className="text-xl font-semibold mb-6 text-foreground">Current State</h2>
           <div className="flex flex-col items-center">
-            <FocusMeter percentage={museConnected ? Math.round(focusState.confidence * 100) : todayFocus} size="lg" />
+            <FocusMeter percentage={museConnected && !mockMode ? Math.round(focusState.confidence * 100) : todayFocus} size="lg" />
             
-            {/* Real-time Focus Info */}
-            {museConnected && (
+            {/* Real-time Focus Info - only when real Muse is connected */}
+            {museConnected && !mockMode && (
               <div className="mt-4 w-full">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm text-muted-foreground">Live Focus</span>
@@ -142,13 +142,18 @@ export default function Dashboard() {
             <div className="mt-4 w-full space-y-3 pt-4 border-t border-white/10 dark:border-white/10 light:border-black/10">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Muse</span>
-                <span className={`text-sm font-medium transition-colors ${museConnected ? 'text-[#22c55e]' : 'text-[#f97316]'}`}>
-                  {museConnected ? '✓ Connected' : '○ Not Connected'}
+                <span className={`text-sm font-medium transition-colors ${museConnected && !mockMode ? 'text-[#22c55e]' : 'text-[#f97316]'}`}>
+                  {museConnected && !mockMode ? '✓ Connected' : mockMode ? '○ Mock data' : '○ Not Connected'}
                 </span>
               </div>
+              {mockMode && (
+                <p className="text-xs text-amber-500 dark:text-amber-400">
+                  Simulated data — connect Muse + BlueMuse for real brainwaves
+                </p>
+              )}
               
-              {/* Wave Bands (if connected) */}
-              {museConnected && currentReading && (
+              {/* Wave Bands (only when real Muse connected) */}
+              {museConnected && !mockMode && currentReading && (
                 <div className="space-y-2 pt-2">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-muted-foreground">Beta</span>

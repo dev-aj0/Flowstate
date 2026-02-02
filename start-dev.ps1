@@ -27,6 +27,6 @@ Write-Host ""
 Write-Host "📍 Backend: http://localhost:8000" -ForegroundColor Cyan
 Write-Host "📍 Frontend: http://localhost:3000" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Press any key to exit this script (servers will continue running)..." -ForegroundColor Gray
+Write-Host "Press any key to exit this script (servers will continue running)." -ForegroundColor Gray
 Read-Host
 

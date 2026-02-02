@@ -23,6 +23,7 @@ const defaultSettings: AppSettings = {
   mode: 'dark',
   sessionDuration: 25,
   theme: 'default',
+  useMockData: false,
 };
 
 // User Profile

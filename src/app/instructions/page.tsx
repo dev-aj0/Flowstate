@@ -606,16 +606,21 @@ export default function InstructionsPage() {
           </div>
           
           <div className="p-4 rounded-lg bg-white/5 dark:bg-white/5 light:bg-black/5 border border-white/10">
-            <h3 className="font-semibold text-foreground mb-2">Muse not connecting</h3>
+            <h3 className="font-semibold text-foreground mb-2">Muse shows &quot;Not Connected&quot; even with BlueMuse streaming</h3>
             <p className="text-sm text-muted-foreground mb-2">
-              The app works perfectly without a Muse headset using mock data. If you want to use a real Muse:
+              <strong>Order of operations matters.</strong> Do this:
             </p>
-            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground ml-4">
-              <li>Ensure BlueMuse or Muse Direct is running and streaming</li>
-              <li>Start the LSL stream before starting the backend</li>
-              <li>Check that Muse is connected via Bluetooth</li>
-              <li>Verify BlueMuse shows "Streaming..." status</li>
-            </ul>
+            <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground ml-4 mb-2">
+              <li>Start BlueMuse and click <strong>&quot;Start LSL Stream&quot;</strong> first. Wait until it shows streaming.</li>
+              <li>Then start the backend (<code className="bg-black/20 px-1 rounded">cd backend</code>, activate venv, <code className="bg-black/20 px-1 rounded">python main.py</code>).</li>
+              <li>Then open the app in your browser (or refresh if already open).</li>
+            </ol>
+            <p className="text-sm text-muted-foreground mb-2">
+              If you already started the backend before BlueMuse: <strong>restart the backend</strong> (Ctrl+C, then run <code className="bg-black/20 px-1 rounded">python main.py</code> again) with BlueMuse already streaming. Check the backend terminal — you should see &quot;Connected to stream: Muse-...&quot; when it finds the Muse.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Also ensure: Muse is paired via Bluetooth, BlueMuse shows &quot;Streaming...&quot;, and Windows Firewall is not blocking the backend.
+            </p>
           </div>
           
           <div className="p-4 rounded-lg bg-white/5 dark:bg-white/5 light:bg-black/5 border border-white/10">

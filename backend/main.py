@@ -71,9 +71,11 @@ active_connections: List[WebSocket] = []
 muse_stream: Optional[StreamInlet] = None
 stream_active = False
 mock_mode = False
+user_mock_enabled = False  # Toggle from Settings; mock only when True
 
 # Sample buffer for FFT processing (need window of samples for frequency analysis)
 sample_buffer: List[float] = []
+MUSE_CHANNEL_NAMES = ("TP9", "AF7", "AF8", "TP10")
 BUFFER_SIZE = 256  # ~1 second at 256Hz
 
 # Baseline values for focus detection
@@ -88,29 +90,36 @@ MOCK_SAMPLE_RATE = 256.0
 
 
 def calculate_band_power(data: np.ndarray, fs: float, low_freq: float, high_freq: float) -> float:
-    """Calculate band power using FFT"""
+    """Calculate band power using FFT. Remove DC first so bands distribute properly."""
+    data = np.asarray(data, dtype=float)
+    # Remove DC (mean) so low-frequency bands don't dominate
+    data = data - np.mean(data)
     fft = np.fft.fft(data)
-    freqs = np.fft.fftfreq(len(data), 1/fs)
-    
-    # Find indices in frequency band
-    band_mask = (freqs >= low_freq) & (freqs <= high_freq)
-    band_power = np.sum(np.abs(fft[band_mask]) ** 2)
-    
-    # Normalize
-    total_power = np.sum(np.abs(fft) ** 2)
+    freqs = np.fft.fftfreq(len(data), 1.0 / fs)
+    # Use positive frequencies only (real signal: symmetric)
+    n = len(data)
+    pos_mask = freqs >= 0
+    freqs_pos = freqs[pos_mask]
+    fft_pos = fft[pos_mask]
+    band_mask = (freqs_pos >= low_freq) & (freqs_pos <= high_freq)
+    band_power = np.sum(np.abs(fft_pos[band_mask]) ** 2)
+    total_power = np.sum(np.abs(fft_pos) ** 2)
     if total_power == 0:
         return 0.0
-    
     return (band_power / total_power) * 100
 
 
-def process_eeg_sample(sample_buffer: List[float], fs: float) -> dict:
+def process_eeg_sample(
+    sample_buffer: List[float],
+    fs: float,
+    channel_buffers: Optional[List[List[float]]] = None,
+    channel_names: Optional[tuple] = None,
+) -> dict:
     """
-    Process buffered EEG samples into frequency bands using FFT
-    Returns: {timestamp, alpha, beta, gamma, delta, theta}
+    Process buffered EEG samples into frequency bands using FFT.
+    Returns: {timestamp, alpha, beta, gamma, delta, theta, channels?, rawChannels?}
     """
     if len(sample_buffer) < 64:  # Need minimum samples for FFT
-        # Return zeros if buffer too small (waiting for more data)
         return {
             "timestamp": int(time.time() * 1000),
             "alpha": 0.0,
@@ -119,21 +128,32 @@ def process_eeg_sample(sample_buffer: List[float], fs: float) -> dict:
             "delta": 0.0,
             "theta": 0.0,
         }
-    
+
+    def band_powers_from_buffer(buf: List[float]) -> dict:
+        samples = np.array(buf[-BUFFER_SIZE:])
+        window = np.hanning(len(samples))
+        windowed = samples * window
+        return {
+            "delta": float(calculate_band_power(windowed, fs, 0.5, 4.0)),
+            "theta": float(calculate_band_power(windowed, fs, 4.0, 8.0)),
+            "alpha": float(calculate_band_power(windowed, fs, 8.0, 13.0)),
+            "beta": float(calculate_band_power(windowed, fs, 13.0, 30.0)),
+            "gamma": float(calculate_band_power(windowed, fs, 30.0, 100.0)),
+        }
+
     # Convert to numpy array and apply window function (Hann window)
     samples = np.array(sample_buffer[-BUFFER_SIZE:])
     window = np.hanning(len(samples))
     windowed_samples = samples * window
-    
+
     # Frequency bands (Hz)
-    # Delta: 0.5-4, Theta: 4-8, Alpha: 8-13, Beta: 13-30, Gamma: 30-100
     delta = calculate_band_power(windowed_samples, fs, 0.5, 4.0)
     theta = calculate_band_power(windowed_samples, fs, 4.0, 8.0)
     alpha = calculate_band_power(windowed_samples, fs, 8.0, 13.0)
     beta = calculate_band_power(windowed_samples, fs, 13.0, 30.0)
     gamma = calculate_band_power(windowed_samples, fs, 30.0, 100.0)
-    
-    return {
+
+    out: dict = {
         "timestamp": int(time.time() * 1000),
         "alpha": float(alpha),
         "beta": float(beta),
@@ -141,6 +161,18 @@ def process_eeg_sample(sample_buffer: List[float], fs: float) -> dict:
         "delta": float(delta),
         "theta": float(theta),
     }
+
+    # Per-channel band powers (so app can show "way more info" like LSL bridge)
+    if channel_buffers and channel_names and len(channel_buffers) == len(channel_names):
+        out["channels"] = [
+            {"name": channel_names[i], **band_powers_from_buffer(channel_buffers[i])}
+            for i in range(len(channel_names))
+            if len(channel_buffers[i]) >= 64
+        ]
+        if len(out["channels"]) < len(channel_names):
+            out["channels"] = []  # Only send when all channels have enough data
+
+    return out
 
 
 def analyze_focus_state(reading: dict) -> dict:
@@ -270,9 +302,9 @@ async def _broadcast_json(payload: dict) -> None:
 
 
 async def _stream_mock_data(reason: str) -> None:
-    """Fallback EEG stream when Muse headset or pylsl is unavailable."""
+    """Mock EEG stream; only runs when user enables it in Settings."""
 
-    global mock_mode
+    global mock_mode, stream_active, user_mock_enabled
     mock_mode = True
 
     print(f"Starting mock EEG stream ({reason}).")
@@ -289,9 +321,7 @@ async def _stream_mock_data(reason: str) -> None:
     baseline_alpha = 50.0
     baseline_beta = 60.0
 
-    start = time.time()
-
-    while stream_active and active_connections:
+    while stream_active and active_connections and user_mock_enabled:
         elapsed = time.time() - start
         alpha = 48.0 + 7.0 * np.sin(elapsed / 2.5) + rng.normal(0, 2.0)
         alpha = max(alpha, 5.0)
@@ -325,11 +355,19 @@ async def _stream_mock_data(reason: str) -> None:
 
     print("Mock EEG stream stopped.")
     mock_mode = False
+    stream_active = False
+    # Tell clients mock is off so UI updates immediately
+    await _broadcast_json({
+        "type": "muse_status",
+        "museConnected": False,
+        "mockMode": False,
+        "message": "Mock data disabled.",
+    })
 
 
 async def stream_muse_data():
     """Stream Muse data to all connected WebSocket clients"""
-    global muse_stream, stream_active, baseline_alpha, baseline_beta, sample_buffer, mock_mode
+    global muse_stream, stream_active, baseline_alpha, baseline_beta, sample_buffer, mock_mode, user_mock_enabled
 
     if stream_active:
         return
@@ -339,12 +377,30 @@ async def stream_muse_data():
     try:
         # Resolve Muse stream (looks for Muse LSL stream)
         if resolve_stream is None or StreamInlet is None:
-            await _stream_mock_data("pylsl not installed")
+            if user_mock_enabled:
+                await _stream_mock_data("pylsl not installed")
             return
 
         print("Looking for Muse LSL stream...")
         print("Make sure BlueMuse or Muse Direct is running and streaming.")
-        streams = resolve_stream('type', 'EEG')
+        # Give LSL time to discover streams (important on Windows)
+        await asyncio.sleep(2)
+        try:
+            streams = resolve_stream('type', 'EEG')
+        except Exception as e:
+            print(f"LSL resolve (type=EEG) failed: {e}")
+            streams = []
+        # Fallback: get all streams with longer wait, then filter for Muse/EEG
+        if not streams and _pylsl_module is not None:
+            try:
+                resolve_streams = getattr(_pylsl_module, 'resolve_streams', None)
+                if resolve_streams:
+                    all_streams = resolve_streams(wait_time=5.0)
+                    streams = [s for s in all_streams if 'Muse' in s.name() or s.type() == 'EEG']
+                    if streams:
+                        print(f"Found stream via resolve_streams: {streams[0].name()}")
+            except Exception as e:
+                print(f"Fallback resolve_streams failed: {e}")
 
         if not streams:
             error_msg = (
@@ -366,27 +422,39 @@ async def stream_muse_data():
             }
             await _broadcast_json(error_message)
 
-            # Keep trying to find stream
-            while not streams and active_connections:
-                await asyncio.sleep(2)
+            # Retry finding stream (stop if user enables mock in Settings)
+            max_retries = 5
+            retries = 0
+            while not streams and active_connections and retries < max_retries and not user_mock_enabled:
+                retries += 1
+                await asyncio.sleep(3)
                 try:
-                    streams = resolve_stream('type', 'EEG', timeout=1.0)
-                except:
+                    streams = resolve_stream('type', 'EEG')
+                except Exception:
                     streams = []
+                if not streams and _pylsl_module is not None:
+                    try:
+                        resolve_streams = getattr(_pylsl_module, 'resolve_streams', None)
+                        if resolve_streams:
+                            all_streams = resolve_streams(wait_time=5.0)
+                            streams = [s for s in all_streams if 'Muse' in s.name() or s.type() == 'EEG']
+                    except Exception:
+                        pass
                 if streams:
+                    print("Muse LSL stream found after retry.")
                     break
 
             if not streams:
-                print("Failed to find Muse stream. Backend will wait for connection.")
-                # Notify clients that Muse is not connected
+                print("Failed to find Muse stream. Use Settings to enable mock data if needed.")
                 muse_disconnected_msg = {
                     "type": "muse_status",
                     "museConnected": False,
-                    "mockMode": True,
-                    "message": "No Muse headset detected. Using mock data.",
+                    "mockMode": False,
+                    "message": "No Muse headset detected. Enable mock data in Settings to try the app without a headset.",
                 }
                 await _broadcast_json(muse_disconnected_msg)
-                await _stream_mock_data("no Muse headset detected")
+                if user_mock_enabled:
+                    await _stream_mock_data("user requested")
                 return
 
         # Create inlet
@@ -394,27 +462,37 @@ async def stream_muse_data():
         print(f"Connected to stream: {streams[0].name()}")
 
         # Get stream info
-        fs = inlet.info().nominal_srate()
+        info = inlet.info()
+        fs = info.nominal_srate()
         if fs == 0:
             fs = 256  # Default Muse sample rate
+        try:
+            ch_count = int(info.channel_count()) if hasattr(info, 'channel_count') else 4
+        except Exception:
+            ch_count = 4
+        stream_name = info.name() if hasattr(info, 'name') and callable(info.name) else 'EEG'
 
-        print(f"Sample rate: {fs} Hz")
+        print(f"Sample rate: {fs} Hz, channels: {ch_count}, stream: {stream_name}")
         stream_active = True
         muse_stream = inlet
         mock_mode = False
-        
-        # Notify all clients that Muse is now connected
-        muse_connected_msg = {
+
+        # If stream has 5 channels, assume pre-computed bands [delta, theta, alpha, beta, gamma]
+        use_precomputed_bands = ch_count == 5
+
+        await _broadcast_json({
             "type": "muse_status",
             "museConnected": True,
+            "mockMode": False,
             "message": "Muse headset connected",
-        }
-        await _broadcast_json(muse_connected_msg)
+        })
 
-        # Reset baselines and buffer
         baseline_alpha = 50.0
         baseline_beta = 60.0
         sample_buffer = []
+        num_channels = min(4, ch_count) if not use_precomputed_bands else 0
+        channel_buffers_list = [[] for _ in range(num_channels)] if num_channels else []
+        channel_names_tuple = MUSE_CHANNEL_NAMES[:num_channels]
 
         # Stream loop
         while stream_active and active_connections:
@@ -423,38 +501,60 @@ async def stream_muse_data():
                 sample, timestamp = inlet.pull_sample(timeout=1.0)
 
                 if sample:
-                    # Process sample (average across channels for simplicity)
-                    # Muse has 4 channels: TP9, AF7, AF8, TP10
-                    avg_sample = float(np.mean(sample))
-                    
-                    # Add to buffer
-                    sample_buffer.append(avg_sample)
-                    # Keep buffer size manageable
-                    if len(sample_buffer) > BUFFER_SIZE * 2:
-                        sample_buffer = sample_buffer[-BUFFER_SIZE:]
-                    
-                    # Process into frequency bands (only if we have enough samples)
-                    if len(sample_buffer) >= 64:
-                        reading = process_eeg_sample(sample_buffer, fs)
-                    else:
-                        # Return zeros while buffer fills (waiting for enough data)
+                    # Pre-computed 5 bands: [delta, theta, alpha, beta, gamma] (e.g. some LSL bridges)
+                    if use_precomputed_bands and len(sample) >= 5:
+                        raw = [float(sample[i]) for i in range(5)]
+                        total = sum(abs(v) for v in raw) or 1.0
                         reading = {
                             "timestamp": int(time.time() * 1000),
-                            "alpha": 0.0,
-                            "beta": 0.0,
-                            "gamma": 0.0,
-                            "delta": 0.0,
-                            "theta": 0.0,
+                            "delta": float((abs(raw[0]) / total) * 100),
+                            "theta": float((abs(raw[1]) / total) * 100),
+                            "alpha": float((abs(raw[2]) / total) * 100),
+                            "beta": float((abs(raw[3]) / total) * 100),
+                            "gamma": float((abs(raw[4]) / total) * 100),
+                            "rawChannels": raw,
+                            "channelNames": ["Delta", "Theta", "Alpha", "Beta", "Gamma"],
                         }
-                    
-                    # Analyze focus state
+                    else:
+                        avg_sample = float(np.mean(sample))
+                        sample_buffer.append(avg_sample)
+                        if len(sample_buffer) > BUFFER_SIZE * 2:
+                            sample_buffer = sample_buffer[-BUFFER_SIZE:]
+
+                        nch = min(len(sample), len(channel_buffers_list))
+                        for ch in range(nch):
+                            channel_buffers_list[ch].append(float(sample[ch]))
+                            if len(channel_buffers_list[ch]) > BUFFER_SIZE * 2:
+                                channel_buffers_list[ch] = channel_buffers_list[ch][-BUFFER_SIZE:]
+
+                        if len(sample_buffer) >= 64:
+                            reading = process_eeg_sample(
+                                sample_buffer, fs,
+                                channel_buffers=channel_buffers_list,
+                                channel_names=channel_names_tuple,
+                            )
+                        else:
+                            reading = {
+                                "timestamp": int(time.time() * 1000),
+                                "alpha": 0.0,
+                                "beta": 0.0,
+                                "gamma": 0.0,
+                                "delta": 0.0,
+                                "theta": 0.0,
+                            }
+
+                        if num_channels and len(sample) >= num_channels:
+                            reading["rawChannels"] = [float(sample[i]) for i in range(num_channels)]
+                            reading["channelNames"] = list(channel_names_tuple)
+
                     focus_state = analyze_focus_state(reading)
 
-                    # Send to all connected clients
+                    # Send to all connected clients (always include mockMode so frontend knows source)
                     message = {
                         "type": "eeg_data",
                         "reading": reading,
                         "focusState": focus_state,
+                        "mockMode": False,
                     }
                     await _broadcast_json(message)
 
@@ -465,12 +565,13 @@ async def stream_muse_data():
                 muse_disconnected_msg = {
                     "type": "muse_status",
                     "museConnected": False,
+                    "mockMode": True,
                     "message": "Muse stream lost. Reconnecting...",
                 }
                 await _broadcast_json(muse_disconnected_msg)
 
                 try:
-                    streams = resolve_stream('type', 'EEG', timeout=2.0)
+                    streams = resolve_stream('type', 'EEG')
                 except:
                     streams = []
                 if streams:
@@ -481,6 +582,7 @@ async def stream_muse_data():
                     muse_connected_msg = {
                         "type": "muse_status",
                         "museConnected": True,
+                        "mockMode": False,
                         "message": "Muse headset reconnected",
                     }
                     await _broadcast_json(muse_connected_msg)
@@ -541,6 +643,19 @@ async def websocket_endpoint(websocket: WebSocket):
                 msg_type = message.get("type")
                 if msg_type == "ping":
                     await websocket.send_json({"type": "pong"})
+                elif msg_type == "set_mock_mode":
+                    global user_mock_enabled
+                    enabled = message.get("enabled", False)
+                    user_mock_enabled = bool(enabled)
+                    if enabled and not stream_active and muse_stream is None:
+                        stream_active = True
+                        asyncio.create_task(_stream_mock_data("user requested"))
+                    elif not enabled:
+                        pass  # _stream_mock_data loop will exit when it checks user_mock_enabled
+                    await websocket.send_json({
+                        "type": "mock_mode_ack",
+                        "enabled": user_mock_enabled,
+                    })
                 elif msg_type == "calibration_update":
                     calibration = message.get("calibration")
                     if calibration:

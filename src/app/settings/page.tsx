@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Volume2, VolumeX, Bell, Moon, Sun, Clock, User, Bluetooth } from 'lucide-react';
+import { Volume2, VolumeX, Bell, Moon, Sun, Clock, User, Bluetooth, Cpu } from 'lucide-react';
 import { getSettings, saveSettings, getUserProfile, saveUserProfile, getCalibration } from '@/lib/storage';
 import { AppSettings, CalibrationData, UserProfile } from '@/types';
 import { CalibrationDialog } from '@/components/calibration-dialog';
 import { CustomSelect } from '@/components/ui/custom-select';
+import { Switch } from '@/components/ui/switch';
 import { useEEGStream } from '@/hooks/use-eeg-stream';
+import { wsManager } from '@/lib/websocket-manager';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(getSettings());
@@ -127,6 +129,32 @@ export default function SettingsPage() {
               Optional: Self-report if you have a condition to optimize timer settings (not for diagnosis)
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* Device / Mock data */}
+      <div className="glass-card p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <Cpu className="w-5 h-5 text-[#3b82f6]" />
+          <h2 className="text-xl font-semibold">Device</h2>
+        </div>
+        <div className="flex items-center justify-between p-4 rounded-lg glass-card-strong">
+          <div>
+            <p className="font-medium">Use mock data</p>
+            <p className="text-sm text-muted-foreground">
+              Simulate brainwave data when no Muse headset is connected
+            </p>
+          </div>
+          <Switch
+            checked={!!settings.useMockData}
+            onCheckedChange={(checked) => {
+              const newSettings = { ...settings, useMockData: checked };
+              setSettings(newSettings);
+              saveSettings(newSettings);
+              wsManager.send({ type: 'set_mock_mode', enabled: checked });
+              showSavedMessage();
+            }}
+          />
         </div>
       </div>
 
@@ -359,5 +387,4 @@ export default function SettingsPage() {
       />
     </div>
   );
-}
 }

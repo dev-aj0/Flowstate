@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { EEGReading, FocusState } from '@/types';
 import { wsManager } from '@/lib/websocket-manager';
+import { getSettings } from '@/lib/storage';
 
 interface WebSocketMessage {
   type: string;
@@ -10,6 +11,7 @@ interface WebSocketMessage {
   focusState?: FocusState;
   message?: string;
   museConnected?: boolean;
+  mockMode?: boolean;
 }
 
 export function useEEGStream(isActive: boolean = false) {
@@ -32,6 +34,7 @@ export function useEEGStream(isActive: boolean = false) {
   const [connected, setConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [museConnected, setMuseConnected] = useState(false);
+  const [mockMode, setMockMode] = useState(false);
 
   // Subscribe to WebSocket messages
   useEffect(() => {
@@ -47,11 +50,22 @@ export function useEEGStream(isActive: boolean = false) {
         } else {
           setMuseConnected(false);
         }
+        if (data.mockMode !== undefined) {
+          setMockMode(data.mockMode);
+        }
+        if (data.mockMode === true) {
+          setMuseConnected(false);
+        }
+        // Always sync backend with current Settings so mock on/off matches user preference
+        wsManager.send({ type: 'set_mock_mode', enabled: !!getSettings().useMockData });
       } else if (data.type === 'eeg_data' && data.reading && data.focusState) {
         setCurrentReading(data.reading);
         setFocusState(data.focusState);
-        setMuseConnected(true);
-        setConnectionError(null);
+        // Only show "Muse Connected" when backend explicitly says mockMode: false
+        const isMock = data.mockMode === true;
+        setMockMode(isMock);
+        setMuseConnected(data.mockMode === false);
+        setConnectionError(isMock ? 'Using mock data (no Muse)' : null);
         
         setHistory(prev => {
           const updated = [...prev, data.reading!];
@@ -60,6 +74,9 @@ export function useEEGStream(isActive: boolean = false) {
       } else if (data.type === 'muse_status') {
         if (data.museConnected !== undefined) {
           setMuseConnected(data.museConnected);
+        }
+        if (data.mockMode !== undefined) {
+          setMockMode(data.mockMode);
         }
         if (data.message) {
           setConnectionError(data.museConnected ? null : data.message);
@@ -123,6 +140,7 @@ export function useEEGStream(isActive: boolean = false) {
     resetHistory,
     connected,
     museConnected,
+    mockMode,
     connectionError,
   };
 }
