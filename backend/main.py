@@ -306,6 +306,7 @@ async def _stream_mock_data(reason: str) -> None:
 
     global mock_mode, stream_active, user_mock_enabled
     mock_mode = True
+    start = time.time()
 
     print(f"Starting mock EEG stream ({reason}).")
     await _broadcast_json(
@@ -313,7 +314,6 @@ async def _stream_mock_data(reason: str) -> None:
             "type": "muse_status",
             "museConnected": False,
             "mockMode": True,
-            "message": f"Using mock data: {reason}",
         }
     )
 
@@ -453,7 +453,8 @@ async def stream_muse_data():
                     "message": "No Muse headset detected. Enable mock data in Settings to try the app without a headset.",
                 }
                 await _broadcast_json(muse_disconnected_msg)
-                if user_mock_enabled:
+                # Only start mock here if not already running (e.g. started from WebSocket)
+                if user_mock_enabled and not mock_mode:
                     await _stream_mock_data("user requested")
                 return
 
@@ -609,13 +610,15 @@ async def stream_muse_data():
         await _broadcast_json(error_message)
     finally:
         muse_stream = None
-        stream_active = False
-        mock_mode = False
+        # Don't clear stream_active if mock is running (started from WebSocket)
+        if not mock_mode:
+            stream_active = False
 
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time EEG streaming"""
+    global stream_active, mock_mode, muse_stream
     await websocket.accept()
     active_connections.append(websocket)
     print(f"Client connected. Total connections: {len(active_connections)}")
@@ -647,7 +650,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     global user_mock_enabled
                     enabled = message.get("enabled", False)
                     user_mock_enabled = bool(enabled)
-                    if enabled and not stream_active and muse_stream is None:
+                    # Start mock immediately when user enables it (no Muse connected)
+                    if enabled and muse_stream is None and not mock_mode:
                         stream_active = True
                         asyncio.create_task(_stream_mock_data("user requested"))
                     elif not enabled:
@@ -729,7 +733,7 @@ async def status():
 
 if __name__ == "__main__":
     import uvicorn
+    port = int(os.environ.get("PORT", "8001"))
     # host="0.0.0.0" allows connections from any network interface (localhost + network)
-    # For network access, ensure Windows Firewall allows port 8000
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=port)
 

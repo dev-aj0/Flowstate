@@ -75,7 +75,7 @@ export function CalibrationDialog({ open, onOpenChange, onComplete }: Calibratio
   const diagnosisFocusHistoryRef = useRef<number[]>([]);
 
   const activePhase = phase === 'focus' || phase === 'relax';
-  const { currentReading, focusState, museConnected, connectionError } = useEEGStream(open && activePhase);
+  const { currentReading, focusState, museConnected, mockMode, connectionError } = useEEGStream(open && activePhase);
 
   useEffect(() => {
     if (!open) {
@@ -347,7 +347,7 @@ export function CalibrationDialog({ open, onOpenChange, onComplete }: Calibratio
                 <div>
                   <p className="font-semibold text-sm">Heads-up</p>
                   <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1 pl-1">
-                    <li>Muse connection is {museConnected ? 'active ✅' : 'not detected ⚠️ — mock data will be used'}.</li>
+                    <li>Muse connection is {museConnected ? 'active ✅' : 'not detected — optional for calibration'}.</li>
                     <li>Find a quiet spot and sit comfortably with your eyes open.</li>
                     <li>Have a simple focus task (reading, breathing) for the first phase.</li>
                   </ul>
@@ -379,8 +379,8 @@ export function CalibrationDialog({ open, onOpenChange, onComplete }: Calibratio
               <p className="font-medium mb-2">Live status</p>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Muse</span>
-                <span className={`font-medium ${museConnected ? 'text-[#22c55e]' : 'text-[#f97316]'}`}>
-                  {museConnected ? 'Connected' : 'Mock Mode'}
+                <span className={`font-medium ${(museConnected || mockMode) ? 'text-[#22c55e]' : 'text-[#f97316]'}`}>
+                  {(museConnected || mockMode) ? 'Connected' : 'No device'}
                 </span>
               </div>
               {connectionError && (
@@ -449,7 +449,7 @@ export function CalibrationDialog({ open, onOpenChange, onComplete }: Calibratio
               </div>
             </div>
             <div className="text-xs text-muted-foreground">
-              • Ensure the headset is streaming (or keep mock mode active). <br />
+              • Ensure the headset is streaming or data is enabled in Settings. <br />
               • Stay still during each phase for cleaner readings.
             </div>
           </div>

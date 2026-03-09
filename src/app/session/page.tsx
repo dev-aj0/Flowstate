@@ -8,6 +8,7 @@ import { EEGWaveform } from '@/components/eeg-waveform';
 import { FocusMeter } from '@/components/focus-meter';
 import { AlertModal } from '@/components/alert-modal';
 import { addSession, getSettings, saveSettings, getUserProfile } from '@/lib/storage';
+import { wsManager } from '@/lib/websocket-manager';
 import { useRouter } from 'next/navigation';
 import { 
   getOptimizedTimer, 
@@ -165,6 +166,11 @@ export default function SessionPage() {
   }, [isBreak, sessionActive, pomodoroEnabled, settings.soundEnabled, settings.alertStyle]);
 
   const handleStartSession = () => {
+    // Re-request mock stream if user has mock enabled (so backend starts sending immediately)
+    if (getSettings().useMockData) {
+      wsManager.send({ type: 'set_mock_mode', enabled: true });
+    }
+
     // Initialize optimized settings if Pomodoro enabled or diagnosis present
     if (pomodoroEnabled || profile?.diagnosis) {
       const optSettings = getOptimizedTimer(profile, [], 0);
@@ -304,20 +310,10 @@ export default function SessionPage() {
             <div className="mt-6 space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Muse</span>
-                <span className={`text-sm font-medium transition-colors ${museConnected ? 'text-[#22c55e]' : 'text-[#f97316]'}`}>
-                  {museConnected ? '✓ Connected' : mockMode ? '○ Mock data (no headset)' : '○ Not Connected'}
+                <span className={`text-sm font-medium transition-colors ${(museConnected || mockMode) ? 'text-[#22c55e]' : 'text-[#f97316]'}`}>
+                  {(museConnected || mockMode) ? '✓ Connected' : '○ Not Connected'}
                 </span>
               </div>
-              {mockMode && (
-                <div className="text-xs text-amber-500 dark:text-amber-400 font-medium">
-                  Numbers are simulated — connect Muse + BlueMuse for real brainwaves
-                </div>
-              )}
-              {connectionError && !mockMode && (
-                <div className="text-xs text-[#f97316] mt-1">
-                  {connectionError}
-                </div>
-              )}
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Status</span>
                 <span className={`text-sm font-medium transition-colors ${!hasLiveData ? 'text-muted-foreground' : focusState.isFocused ? 'text-[#22c55e]' : 'text-[#f97316]'}`}>
@@ -355,7 +351,16 @@ export default function SessionPage() {
                   <AlertCircle className="w-4 h-4 text-[#f97316]" />
                   <span className="text-sm text-muted-foreground">Distraction Events</span>
                 </div>
-                <span className="text-lg font-semibold text-foreground">{distractionCount}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-lg font-semibold text-foreground">{distractionCount}</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAlert(true)}
+                    className="text-xs text-muted-foreground hover:text-foreground underline transition-colors"
+                  >
+                    Test alert
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center justify-between py-3 border-t border-white/10 dark:border-white/10 light:border-black/10">
@@ -403,7 +408,7 @@ export default function SessionPage() {
               <div className="flex flex-col items-center justify-center py-12 px-4 rounded-lg bg-white/5 dark:bg-white/5 light:bg-black/5 border border-dashed border-white/10 dark:border-white/10 light:border-black/10">
                 <p className="text-sm text-muted-foreground text-center mb-2">No live data</p>
                 <p className="text-xs text-muted-foreground text-center max-w-xs">
-                  Connect your Muse headset (BlueMuse) or enable mock data in Settings to see the waveform.
+                  Connect your device or check Settings to see the waveform.
                 </p>
               </div>
             )}

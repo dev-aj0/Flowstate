@@ -3,7 +3,7 @@
  * Ensures only one WebSocket connection is maintained across all hook instances
  */
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8001/ws';
 
 type MessageHandler = (data: any) => void;
 type StatusHandler = (connected: boolean) => void;

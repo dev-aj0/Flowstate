@@ -59,17 +59,15 @@ export function Sidebar() {
       <div className="mt-auto pt-6 border-t border-white/10 dark:border-white/10 light:border-black/10">
         <div className="glass-card p-4 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
-            <div className={`w-2 h-2 rounded-full ${museConnected ? 'bg-[#22c55e] animate-pulse' : 'bg-[#f97316]'}`} />
+            <div className={`w-2 h-2 rounded-full ${(museConnected || mockMode) ? 'bg-[#22c55e] animate-pulse' : 'bg-[#f97316]'}`} />
             <span className="text-sm font-medium text-foreground">
-              {museConnected ? 'Muse Connected' : mockMode ? 'Mock data (no Muse)' : 'Muse Not Connected'}
+              {(museConnected || mockMode) ? 'Connected' : 'Not Connected'}
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {museConnected 
+            {(museConnected || mockMode) 
               ? 'Device ready for session' 
-              : mockMode 
-                ? 'Numbers are simulated' 
-                : 'Waiting for Muse headset'}
+              : 'Waiting for device'}
           </p>
         </div>
       </div>

@@ -316,7 +316,7 @@ export default function SettingsPage() {
               <div>
                 <p className="font-medium">Muse 2 Headset</p>
                 <p className="text-sm text-muted-foreground">
-                  {museConnected ? 'Connected via Bluetooth' : 'Not Connected - Using mock data'}
+                  {museConnected ? 'Connected via Bluetooth' : ''}
                 </p>
               </div>
             </div>
