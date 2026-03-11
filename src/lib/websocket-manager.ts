@@ -99,7 +99,7 @@ class WebSocketManager {
               this.connect();
             }, delay);
           } else if (this.reconnectAttempts === 10) {
-            console.error('❌ Failed to connect after 10 attempts. Please ensure the backend is running on port 8000.');
+            console.error('❌ Failed to connect after 10 attempts. Please ensure the backend is running on port 8001.');
           }
         }
       };

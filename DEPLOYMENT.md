@@ -63,7 +63,7 @@ Set these in your backend deployment platform:
   ```
 
 **Optional:**
-- `PORT` - Server port (defaults to 8000, most platforms set this automatically)
+- `PORT` - Server port (defaults to 8001, most platforms set this automatically)
 
 ### Backend Deployment Steps (Railway Example)
 
@@ -93,6 +93,7 @@ Set these in your backend deployment platform:
 ## Troubleshooting
 
 ### Frontend shows "Backend disconnected"
+- This means the browser cannot reach the Python backend over the WebSocket (separate from Muse/BlueMuse status)
 - Check that backend is deployed and running
 - Verify `NEXT_PUBLIC_WS_URL` is set correctly in Vercel
 - Ensure backend CORS allows your frontend domain

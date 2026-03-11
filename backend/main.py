@@ -85,6 +85,12 @@ calibration_data: Optional[dict] = None
 calibration_ratio_threshold = 1.2
 calibration_relax_alpha: Optional[float] = None
 
+# Alert throttling: require sustained distraction + cooldown
+last_alert_time: float = 0.0
+distracted_streak: int = 0
+ALERT_COOLDOWN_SEC = 45
+DISTRACTED_STREAK_REQUIRED = 5
+
 rng = np.random.default_rng()
 MOCK_SAMPLE_RATE = 256.0
 
@@ -178,12 +184,14 @@ def process_eeg_sample(
 def analyze_focus_state(reading: dict) -> dict:
     """Analyze focus state from EEG reading"""
     global baseline_alpha, baseline_beta, calibration_data, calibration_ratio_threshold, calibration_relax_alpha
+    global last_alert_time, distracted_streak
 
     alpha = reading["alpha"]
     beta = reading["beta"]
     
     # If no data yet (zeros), return default state
     if alpha == 0 and beta == 0:
+        distracted_streak = 0
         return {
             "isFocused": False,
             "confidence": 0.0,
@@ -204,23 +212,39 @@ def analyze_focus_state(reading: dict) -> dict:
     ratio_threshold = calibration_ratio_threshold if calibration_data else 1.2
     is_focused = ratio >= ratio_threshold if ratio > 0 else False
     
-    # Confidence based on ratio
-    # Confidence increases as ratio diverges from threshold (either direction)
+    # Confidence = progress toward focus threshold (0-100%)
+    # ratio < threshold: low % when relaxed (e.g. ratio 0.04 -> ~3%)
+    # ratio >= threshold: 100% when focused
     if ratio > 0:
-        diff = abs(ratio - ratio_threshold)
-        confidence = min(diff / max(ratio_threshold * 0.75, 0.01), 1.0)
+        confidence = min(ratio / ratio_threshold, 1.0)
     else:
         confidence = 0.0
     
-    # Alert if alpha spike detected (>40% above baseline)
+    # Alert: sustained distraction + cooldown (no longer every 1-2 seconds)
     alpha_reference = calibration_relax_alpha if calibration_relax_alpha is not None else baseline_alpha
-    alpha_spike = alpha > (alpha_reference * 1.4) if alpha_reference > 0 else False
-    alert_triggered = alpha_spike and not is_focused
-    
+    alpha_spike = alpha > (alpha_reference * 1.6) if alpha_reference > 0 else False  # Raised from 1.4 to 1.6
+    distracted_now = alpha_spike and not is_focused
+
+    if distracted_now:
+        distracted_streak += 1
+    else:
+        distracted_streak = 0
+
+    now = time.time()
+    cooldown_elapsed = (now - last_alert_time) >= ALERT_COOLDOWN_SEC
+    should_trigger = (
+        distracted_streak >= DISTRACTED_STREAK_REQUIRED
+        and cooldown_elapsed
+    )
+
+    if should_trigger:
+        last_alert_time = now
+        distracted_streak = 0
+
     return {
         "isFocused": is_focused,
         "confidence": float(confidence),
-        "alertTriggered": alert_triggered,
+        "alertTriggered": should_trigger,
     }
 
 
@@ -383,19 +407,19 @@ async def stream_muse_data():
 
         print("Looking for Muse LSL stream...")
         print("Make sure BlueMuse or Muse Direct is running and streaming.")
-        # Give LSL time to discover streams (important on Windows)
-        await asyncio.sleep(2)
+        # Give LSL time to discover streams (important on Windows; BlueMuse needs a few seconds)
+        await asyncio.sleep(4)
         try:
-            streams = resolve_stream('type', 'EEG')
+            streams = await asyncio.to_thread(resolve_stream, 'type', 'EEG')
         except Exception as e:
             print(f"LSL resolve (type=EEG) failed: {e}")
             streams = []
         # Fallback: get all streams with longer wait, then filter for Muse/EEG
         if not streams and _pylsl_module is not None:
             try:
-                resolve_streams = getattr(_pylsl_module, 'resolve_streams', None)
-                if resolve_streams:
-                    all_streams = resolve_streams(wait_time=5.0)
+                resolve_streams_fn = getattr(_pylsl_module, 'resolve_streams', None)
+                if resolve_streams_fn:
+                    all_streams = await asyncio.to_thread(resolve_streams_fn, 5.0)
                     streams = [s for s in all_streams if 'Muse' in s.name() or s.type() == 'EEG']
                     if streams:
                         print(f"Found stream via resolve_streams: {streams[0].name()}")
@@ -429,14 +453,14 @@ async def stream_muse_data():
                 retries += 1
                 await asyncio.sleep(3)
                 try:
-                    streams = resolve_stream('type', 'EEG')
+                    streams = await asyncio.to_thread(resolve_stream, 'type', 'EEG')
                 except Exception:
                     streams = []
                 if not streams and _pylsl_module is not None:
                     try:
-                        resolve_streams = getattr(_pylsl_module, 'resolve_streams', None)
-                        if resolve_streams:
-                            all_streams = resolve_streams(wait_time=5.0)
+                        resolve_streams_fn = getattr(_pylsl_module, 'resolve_streams', None)
+                        if resolve_streams_fn:
+                            all_streams = await asyncio.to_thread(resolve_streams_fn, 5.0)
                             streams = [s for s in all_streams if 'Muse' in s.name() or s.type() == 'EEG']
                     except Exception:
                         pass
@@ -458,8 +482,8 @@ async def stream_muse_data():
                     await _stream_mock_data("user requested")
                 return
 
-        # Create inlet
-        inlet = StreamInlet(streams[0])
+        # Create inlet (can block during setup)
+        inlet = await asyncio.to_thread(StreamInlet, streams[0])
         print(f"Connected to stream: {streams[0].name()}")
 
         # Get stream info
@@ -498,8 +522,8 @@ async def stream_muse_data():
         # Stream loop
         while stream_active and active_connections:
             try:
-                # Pull sample (timeout after 1 second)
-                sample, timestamp = inlet.pull_sample(timeout=1.0)
+                # Pull sample (timeout after 1 second) - run in thread to avoid blocking WebSocket
+                sample, timestamp = await asyncio.to_thread(inlet.pull_sample, 1.0)
 
                 if sample:
                     # Pre-computed 5 bands: [delta, theta, alpha, beta, gamma] (e.g. some LSL bridges)
@@ -572,11 +596,11 @@ async def stream_muse_data():
                 await _broadcast_json(muse_disconnected_msg)
 
                 try:
-                    streams = resolve_stream('type', 'EEG')
-                except:
+                    streams = await asyncio.to_thread(resolve_stream, 'type', 'EEG')
+                except Exception:
                     streams = []
                 if streams:
-                    inlet = StreamInlet(streams[0])
+                    inlet = await asyncio.to_thread(StreamInlet, streams[0])
                     muse_stream = inlet
                     print("Reconnected to Muse stream")
                     # Notify clients that Muse is reconnected

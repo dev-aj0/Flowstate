@@ -31,7 +31,8 @@ function generateMockReading(): EEGReading {
 function focusFromReading(r: EEGReading): FocusState {
   const ratio = r.alpha > 0 ? r.beta / r.alpha : 0;
   const isFocused = ratio >= 1.2;
-  const confidence = Math.min(1, Math.max(0, (ratio - 0.8) / 1.2));
+  // Match backend: confidence = min(ratio / threshold, 1)
+  const confidence = Math.min(1, ratio / 1.2);
   return { isFocused, confidence, alertTriggered: false };
 }
 
@@ -54,9 +55,11 @@ export function useEEGStream(isActive: boolean = false) {
   const [history, setHistory] = useState<EEGReading[]>([]);
   const [connected, setConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [museError, setMuseError] = useState<string | null>(null);
   const [museConnected, setMuseConnected] = useState(false);
   const [mockMode, setMockMode] = useState(false);
   const receivedBackendData = useRef(false);
+  const hasEverConnected = useRef(false);
 
   // Subscribe to WebSocket messages
   useEffect(() => {
@@ -90,6 +93,7 @@ export function useEEGStream(isActive: boolean = false) {
         setMockMode(isMock);
         setMuseConnected(data.mockMode === false);
         setConnectionError(null);
+        setMuseError(null);
         setHistory(prev => {
           const updated = [...prev, data.reading!];
           return updated.slice(-100);
@@ -102,12 +106,13 @@ export function useEEGStream(isActive: boolean = false) {
           setMockMode(data.mockMode);
         }
         if (data.message && !data.mockMode) {
-          setConnectionError(data.museConnected ? null : data.message);
+          setMuseError(data.museConnected ? null : data.message);
         } else if (data.mockMode) {
-          setConnectionError(null);
+          setMuseError(null);
         }
       } else if (data.type === 'error') {
-        setConnectionError(data.message || 'Connection error');
+        // Backend sent error (we're connected) — treat as Muse/LSL issue, not backend disconnect
+        setMuseError(data.message || 'Muse stream error');
         setMuseConnected(false);
         setFocusState({
           isFocused: false,
@@ -120,14 +125,25 @@ export function useEEGStream(isActive: boolean = false) {
     });
 
     // Subscribe to connection status
+    // Only show "Backend disconnected" after we've connected at least once (avoids flash on initial load)
     const unsubscribeStatus = wsManager.subscribeStatus((isConnected) => {
       setConnected(isConnected);
-      if (!isConnected) {
-        setConnectionError('Backend disconnected');
-      } else {
+      if (isConnected) {
+        hasEverConnected.current = true;
         setConnectionError(null);
+      } else if (hasEverConnected.current) {
+        setConnectionError('Backend disconnected');
+        setMuseError(null); // Clear Muse error when backend disconnects (connectionError takes priority)
       }
+      // Else: still in initial connection phase, don't show error to avoid false alarm
     });
+
+    // Fallback: if still not connected after 8s, show error (handles backend-down case)
+    const connectionTimeout = setTimeout(() => {
+      if (!hasEverConnected.current && !wsManager.connected) {
+        setConnectionError('Backend disconnected');
+      }
+    }, 8000);
 
     // Send ping to keep connection alive
     const pingInterval = setInterval(() => {
@@ -139,6 +155,7 @@ export function useEEGStream(isActive: boolean = false) {
     return () => {
       unsubscribe();
       unsubscribeStatus();
+      clearTimeout(connectionTimeout);
       clearInterval(pingInterval);
     };
   }, []);
@@ -185,6 +202,9 @@ export function useEEGStream(isActive: boolean = false) {
     setHistory([]);
   }, []);
 
+  // When backend is down, show connectionError. Otherwise show museError (backend can't find Muse).
+  const displayError = connectionError ?? museError;
+
   return {
     currentReading,
     focusState,
@@ -193,6 +213,6 @@ export function useEEGStream(isActive: boolean = false) {
     connected,
     museConnected,
     mockMode,
-    connectionError,
+    connectionError: displayError,
   };
 }

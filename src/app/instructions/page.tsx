@@ -354,10 +354,10 @@ export default function InstructionsPage() {
                     <h4 className="font-semibold text-foreground mb-2">For Network Access (Optional):</h4>
                     <p className="text-sm text-muted-foreground mb-2">If running backend on a different machine:</p>
                     <div className="bg-black/20 dark:bg-white/5 light:bg-black/10 rounded-lg p-3 font-mono text-sm">
-                      <code className="text-foreground">NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8000/ws</code>
+                      <code className="text-foreground">NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8001/ws</code>
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
-                      Replace with your backend machine's IP address. Default is <code className="bg-black/20 px-1 rounded">ws://localhost:8000/ws</code>
+                      Replace with your backend machine's IP address. Default is <code className="bg-black/20 px-1 rounded">ws://localhost:8001/ws</code>
                     </p>
                   </div>
                 </div>
@@ -420,7 +420,7 @@ export default function InstructionsPage() {
                     <div className="p-3 rounded-lg bg-[#22c55e]/10 border border-[#22c55e]/20 mt-3">
                       <p className="text-xs text-foreground">
                         <strong>✅ Expected Output:</strong><br />
-                        Backend: <code className="bg-black/20 px-1 rounded">Uvicorn running on http://0.0.0.0:8000</code><br />
+                        Backend: <code className="bg-black/20 px-1 rounded">Uvicorn running on http://0.0.0.0:8001</code><br />
                         Frontend: <code className="bg-black/20 px-1 rounded">Local: http://localhost:3000</code>
                       </p>
                     </div>
@@ -461,12 +461,12 @@ export default function InstructionsPage() {
                     <h4 className="font-semibold text-foreground mb-2">Backend API (Status Check)</h4>
                     <p className="text-sm text-muted-foreground mb-2">Verify backend is running:</p>
                     <a 
-                      href="http://localhost:8000" 
+                      href="http://localhost:8001" 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="text-[#3b82f6] hover:underline font-mono text-lg block mb-2"
                     >
-                      http://localhost:8000
+                      http://localhost:8001
                     </a>
                     <p className="text-xs text-muted-foreground">
                       Should show: <code className="bg-black/20 px-1 rounded">{"{status: 'running'}"}</code>
@@ -576,12 +576,15 @@ export default function InstructionsPage() {
         </div>
         <div className="space-y-4">
           <div className="p-4 rounded-lg bg-white/5 dark:bg-white/5 light:bg-black/5 border border-white/10">
-            <h3 className="font-semibold text-foreground mb-2">"Backend disconnected" message</h3>
+            <h3 className="font-semibold text-foreground mb-2">&quot;Backend disconnected&quot; message</h3>
             <p className="text-sm text-muted-foreground mb-2">
-              This means the frontend can't connect to the backend server. Make sure:
+              This means the <strong>app cannot reach the Python backend over the WebSocket</strong> — it is <strong>separate from Muse/BlueMuse status</strong>. Even if your Muse is connected via BlueMuse, you can see this message when the browser→backend WebSocket fails (wrong URL/port, backend not running, or firewall).
+            </p>
+            <p className="text-sm text-muted-foreground mb-2">
+              When using BlueMuse: the Muse connects to BlueMuse via Bluetooth and streams via LSL. &quot;Backend disconnected&quot; refers only to the connection from your browser to the backend. If frontend and backend are on different machines, set <code className="bg-black/20 px-1 rounded">NEXT_PUBLIC_WS_URL=ws://YOUR_BACKEND_IP:8001/ws</code> in your frontend.
             </p>
             <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground ml-4">
-              <li>The backend is running on port 8000</li>
+              <li>The backend is running on port 8001</li>
               <li>You've activated the virtual environment before starting the backend</li>
               <li>No firewall is blocking the connection</li>
               <li>Check the backend terminal for any error messages</li>
@@ -591,7 +594,7 @@ export default function InstructionsPage() {
           <div className="p-4 rounded-lg bg-white/5 dark:bg-white/5 light:bg-black/5 border border-white/10">
             <h3 className="font-semibold text-foreground mb-2">Port already in use</h3>
             <p className="text-sm text-muted-foreground">
-              If port 3000 or 8000 is already in use, either stop the other application or change the port in the configuration files.
+              If port 3000 or 8001 is already in use, either stop the other application or change the port in the configuration files.
             </p>
           </div>
           
@@ -618,8 +621,11 @@ export default function InstructionsPage() {
             <p className="text-sm text-muted-foreground mb-2">
               If you already started the backend before BlueMuse: <strong>restart the backend</strong> (Ctrl+C, then run <code className="bg-black/20 px-1 rounded">python main.py</code> again) with BlueMuse already streaming. Check the backend terminal — you should see &quot;Connected to stream: Muse-...&quot; when it finds the Muse.
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mb-2">
               Also ensure: Muse is paired via Bluetooth, BlueMuse shows &quot;Streaming...&quot;, and Windows Firewall is not blocking the backend.
+            </p>
+            <p className="text-sm text-muted-foreground font-medium">
+              <strong>Critical:</strong> The backend must run on the <strong>same machine</strong> as BlueMuse. LSL discovers streams on the local network — if BlueMuse runs on a Windows PC and the backend runs on a different machine (e.g. Mac), the backend cannot see the stream.
             </p>
           </div>
           

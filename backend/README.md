@@ -57,13 +57,13 @@ python3 main.py
 **Option C: Using uvicorn directly**
 ```bash
 export DYLD_LIBRARY_PATH="/opt/homebrew/lib:$DYLD_LIBRARY_PATH"
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload --port 8001
 ```
 
 **Note for macOS:** The `DYLD_LIBRARY_PATH` environment variable is required for macOS to find the LSL library. The startup script handles this automatically.
 
 The backend will:
-- Start on `http://localhost:8000`
+- Start on `http://localhost:8001`
 - Look for Muse LSL stream
 - Fall back to mock data if no Muse is found
 - Stream EEG data via WebSocket at `/ws`
@@ -124,7 +124,7 @@ ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,https://your-fronten
 ## Troubleshooting
 
 1. **No Muse stream found**: Make sure Muse Direct is running and streaming
-2. **Connection refused**: Check that backend is running on port 8000
+2. **Connection refused**: Check that backend is running on port 8001
 3. **Import errors**: Make sure all dependencies are installed
 4. **Mock mode**: Backend automatically falls back to mock data if Muse isn't found
 

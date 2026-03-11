@@ -187,7 +187,7 @@ The app works without a Muse headset (uses mock data), but for real brainwave tr
 
 If running backend on one machine and frontend on another:
 ```env
-NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8000/ws
+NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8001/ws
 ```
 Replace `192.168.1.100` with your backend machine's IP address.
 
@@ -216,7 +216,7 @@ python3 main.py
 INFO:     Started server process
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000
+INFO:     Uvicorn running on http://0.0.0.0:8001
 Looking for Muse LSL stream...
 ```
 
@@ -338,16 +338,16 @@ Set the WebSocket URL in `.env.local` (optional, defaults work for local develop
 
 **Local Development (Default):**
 ```env
-NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws
+NEXT_PUBLIC_WS_URL=ws://localhost:8001/ws
 ```
 
 **Network Access (Windows Server Setup):**
 ```env
-NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8000/ws
+NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8001/ws
 ```
 Replace `192.168.1.100` with your backend machine's IP address.
 
-**Note:** Default is `ws://localhost:8000/ws` if not set. For Windows server setup, see [backend/README_WINDOWS.md](backend/README_WINDOWS.md)
+**Note:** Default is `ws://localhost:8001/ws` if not set. For Windows server setup, see [backend/README_WINDOWS.md](backend/README_WINDOWS.md)
 
 ## Project Structure
 
@@ -379,7 +379,7 @@ npm run lint    # Run ESLint
 
 ```bash
 cd backend
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload --port 8001
 ```
 
 ## How It Works
@@ -402,10 +402,10 @@ uvicorn main:app --reload --port 8000
 - ✅ Try reinstalling: `pip install -r requirements.txt --force-reinstall`
 
 **Backend won't connect to frontend:**
-- ✅ Make sure backend is running on port 8000
-- ✅ Check for port conflicts: `netstat -ano | findstr :8000` (Windows) or `lsof -i :8000` (Mac/Linux)
+- ✅ Make sure backend is running on port 8001
+- ✅ Check for port conflicts: `netstat -ano | findstr :8001` (Windows) or `lsof -i :8001` (Mac/Linux)
 - ✅ Verify CORS settings in `backend/main.py` allow your frontend URL
-- ✅ Check Windows Firewall isn't blocking port 8000
+- ✅ Check Windows Firewall isn't blocking port 8001
 
 **Muse not detected:**
 - ✅ Make sure BlueMuse is running and streaming (should show "Streaming..." status)
@@ -428,8 +428,8 @@ uvicorn main:app --reload --port 8000
 - ✅ Check browser console for WebSocket errors (F12 → Console tab)
 
 **WebSocket connection errors:**
-- ✅ Verify backend is running: Check Terminal 1 shows "Uvicorn running on http://0.0.0.0:8000"
-- ✅ Check `.env.local` has correct WebSocket URL: `NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws`
+- ✅ Verify backend is running: Check Terminal 1 shows "Uvicorn running on http://0.0.0.0:8001"
+- ✅ Check `.env.local` has correct WebSocket URL: `NEXT_PUBLIC_WS_URL=ws://localhost:8001/ws`
 - ✅ Restart both backend and frontend after changing `.env.local`
 - ✅ Check browser console for specific error messages
 
@@ -469,8 +469,8 @@ uvicorn main:app --reload --port 8000
 
 **Port already in use:**
 - ✅ Find what's using the port:
-  - Windows: `netstat -ano | findstr :8000` (or :3000)
-  - Mac/Linux: `lsof -i :8000` (or :3000)
+  - Windows: `netstat -ano | findstr :8001` (or :3000)
+  - Mac/Linux: `lsof -i :8001` (or :3000)
 - ✅ Kill the process or use a different port
 - ✅ For backend, edit `backend/main.py` last line to change port
 - ✅ For frontend, use: `npm run dev -- -p 3001`
@@ -520,9 +520,9 @@ npm run dev
 ### Important URLs
 
 - **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **Backend Status**: http://localhost:8000/status
-- **WebSocket**: ws://localhost:8000/ws
+- **Backend API**: http://localhost:8001
+- **Backend Status**: http://localhost:8001/status
+- **WebSocket**: ws://localhost:8001/ws
 
 ### Key Files
 

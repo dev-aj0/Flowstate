@@ -9,11 +9,11 @@ Windows Machine (Server)
 ├── Muse Headset (Bluetooth)
 ├── BlueMuse (LSL Stream)
 ├── Python Backend (WebSocket Server)
-└── Network Access (Port 8000)
+└── Network Access (Port 8001)
 
 Any Device (Client)
 ├── Web Browser
-└── Connects to Windows IP:8000 via WebSocket
+└── Connects to Windows IP:8001 via WebSocket
 ```
 
 ## Prerequisites
@@ -64,15 +64,15 @@ Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.InterfaceAlias -notlike 
 
 The backend is already configured to accept network connections (`host="0.0.0.0"`). Just configure:
 
-1. **Windows Firewall** - Allow port 8000:
+1. **Windows Firewall** - Allow port 8001:
    ```powershell
    # Run PowerShell as Administrator
-   New-NetFirewallRule -DisplayName "NeuroCoach Backend" -Direction Inbound -LocalPort 8000 -Protocol TCP -Action Allow
+   New-NetFirewallRule -DisplayName "NeuroCoach Backend" -Direction Inbound -LocalPort 8001 -Protocol TCP -Action Allow
    ```
    
    Or manually:
    - Windows Security → Firewall & network protection → Advanced settings
-   - Inbound Rules → New Rule → Port → TCP → 8000 → Allow
+   - Inbound Rules → New Rule → Port → TCP → 8001 → Allow
 
 2. **Backend CORS** (Optional - for web browser access):
    - The backend allows all origins by default for development
@@ -109,7 +109,7 @@ You should see:
 INFO:     Started server process
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000
+INFO:     Uvicorn running on http://0.0.0.0:8001
 Looking for Muse LSL stream...
 ```
 
@@ -123,7 +123,7 @@ On your Mac, iPhone, or other device:
 
 Create `.env.local`:
 ```env
-NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8000/ws
+NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8001/ws
 ```
 Replace `192.168.1.100` with your Windows machine's IP address.
 
@@ -131,20 +131,20 @@ Replace `192.168.1.100` with your Windows machine's IP address.
 
 Set the environment variable when building or running:
 ```bash
-NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8000/ws npm run dev
+NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8001/ws npm run dev
 ```
 
 ### For Mobile/Tablet
 
 If accessing via a web app:
 - Use the Windows IP address in the WebSocket URL
-- Example: `ws://192.168.1.100:8000/ws`
+- Example: `ws://192.168.1.100:8001/ws`
 
 ## Step 8: Connect from Any Device
 
 1. **On Windows**: Ensure backend is running and BlueMuse is streaming
 2. **On Client Device**: Open the app/browser
-3. The frontend will automatically connect to `ws://YOUR_WINDOWS_IP:8000/ws`
+3. The frontend will automatically connect to `ws://YOUR_WINDOWS_IP:8001/ws`
 
 ## Troubleshooting
 
@@ -154,10 +154,10 @@ If accessing via a web app:
 - Restart BlueMuse if needed
 
 ### Client can't connect to backend
-- **Check Windows Firewall**: Ensure port 8000 is allowed
+- **Check Windows Firewall**: Ensure port 8001 is allowed
 - **Check IP Address**: Verify you're using the correct Windows IP
 - **Check Network**: Ensure both devices are on the same network (or use port forwarding for remote access)
-- **Test Connection**: Try `curl http://YOUR_WINDOWS_IP:8000` from client device
+- **Test Connection**: Try `curl http://YOUR_WINDOWS_IP:8001` from client device
 
 ### Connection works but no data
 - Verify BlueMuse is actively streaming
@@ -167,7 +167,7 @@ If accessing via a web app:
 ### For Remote Access (Different Networks)
 
 If client is on a different network:
-1. Set up port forwarding on your router (port 8000)
+1. Set up port forwarding on your router (port 8001)
 2. Use your public IP address (or use a service like ngrok)
 3. **Security Note**: Only do this on trusted networks or use authentication
 
@@ -195,7 +195,7 @@ If client is on a different network:
 **On Client Device (Mac, Phone, etc.):**
 1. Create `.env.local`:
    ```env
-   NEXT_PUBLIC_WS_URL=ws://YOUR_WINDOWS_IP:8000/ws
+   NEXT_PUBLIC_WS_URL=ws://YOUR_WINDOWS_IP:8001/ws
    ```
 2. Start frontend:
    ```bash
@@ -206,8 +206,8 @@ That's it! Any device can now connect to your Windows machine's backend and rece
 
 ## Example Workflow
 
-1. **Windows**: BlueMuse streaming + Backend running on `192.168.1.100:8000`
-2. **Mac**: Frontend connects to `ws://192.168.1.100:8000/ws`
+1. **Windows**: BlueMuse streaming + Backend running on `192.168.1.100:8001`
+2. **Mac**: Frontend connects to `ws://192.168.1.100:8001/ws`
 3. **Result**: Mac receives real-time EEG data from Muse connected to Windows!
 
 No BlueMuse needed on Mac, no Python needed on Mac - everything runs on Windows!
