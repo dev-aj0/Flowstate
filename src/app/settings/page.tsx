@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Volume2, VolumeX, Bell, Moon, Sun, Clock, User, Bluetooth, Cpu } from 'lucide-react';
+import { Volume2, VolumeX, Bell, Moon, Sun, Clock, User, Bluetooth, Cpu, Watch } from 'lucide-react';
 import { getSettings, saveSettings, getUserProfile, saveUserProfile, getCalibration } from '@/lib/storage';
 import { AppSettings, CalibrationData, UserProfile } from '@/types';
 import { CalibrationDialog } from '@/components/calibration-dialog';
@@ -9,6 +9,13 @@ import { CustomSelect } from '@/components/ui/custom-select';
 import { Switch } from '@/components/ui/switch';
 import { useEEGStream } from '@/hooks/use-eeg-stream';
 import { wsManager } from '@/lib/websocket-manager';
+import {
+  connectArduinoSerial,
+  disconnectArduinoSerial,
+  isArduinoSerialConnected,
+  isWebSerialSupported,
+  sendArduinoVibrate,
+} from '@/lib/arduino-serial';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(getSettings());
@@ -17,6 +24,15 @@ export default function SettingsPage() {
   const [calibrationOpen, setCalibrationOpen] = useState(false);
   const [calibrationData, setCalibrationData] = useState<CalibrationData | null>(getCalibration());
   const { museConnected, connectionError } = useEEGStream(false);
+  const [wristSerialConnected, setWristSerialConnected] = useState(false);
+  const [wristSerialBusy, setWristSerialBusy] = useState(false);
+  const [wristSerialError, setWristSerialError] = useState<string | null>(null);
+  const [wristSimulateBusy, setWristSimulateBusy] = useState(false);
+  const [wristBuzzFeedback, setWristBuzzFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    setWristSerialConnected(isArduinoSerialConnected());
+  }, []);
 
   // Apply initial mode on mount
   useEffect(() => {
@@ -238,6 +254,122 @@ export default function SettingsPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="rounded-lg glass-card-strong overflow-hidden">
+            <div className="flex items-center justify-between p-4 gap-4">
+              <div className="flex items-start gap-3 min-w-0">
+                <Watch className="w-5 h-5 text-[#3b82f6] shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium">Wrist vibration (Seeed XIAO)</p>
+                  <p className="text-sm text-muted-foreground">
+                    USB serial buzz when focus drops and the distraction alert fires (same as the on-screen alert).
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={!!settings.wristBandEnabled}
+                onCheckedChange={(checked) => handleSettingChange('wristBandEnabled', checked)}
+              />
+            </div>
+            {settings.wristBandEnabled && (
+              <div className="px-4 pb-4 space-y-3 border-t border-white/10 pt-4">
+                {!isWebSerialSupported() ? (
+                  <p className="text-sm text-amber-600 dark:text-amber-400">
+                    Web Serial needs Chrome or Edge on desktop. It is not available in Safari or Firefox.
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={wristSerialBusy || wristSerialConnected}
+                        onClick={async () => {
+                          setWristSerialBusy(true);
+                          setWristSerialError(null);
+                          setWristBuzzFeedback(null);
+                          try {
+                            await connectArduinoSerial();
+                            setWristSerialConnected(true);
+                            showSavedMessage();
+                          } catch (e) {
+                            setWristSerialError(e instanceof Error ? e.message : 'Could not connect');
+                          } finally {
+                            setWristSerialBusy(false);
+                          }
+                        }}
+                        className="min-h-10 px-4 py-2 rounded-lg text-sm font-medium bg-[#3b82f6] text-white cursor-pointer select-none transition active:scale-[0.98] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3b82f6] focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
+                      >
+                        {wristSerialBusy ? 'Connecting…' : 'Connect USB device'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={wristSerialBusy || !wristSerialConnected}
+                        onClick={async () => {
+                          setWristSerialBusy(true);
+                          setWristSerialError(null);
+                          setWristBuzzFeedback(null);
+                          try {
+                            await disconnectArduinoSerial();
+                            setWristSerialConnected(false);
+                            showSavedMessage();
+                          } catch (e) {
+                            setWristSerialError(e instanceof Error ? e.message : 'Disconnect failed');
+                          } finally {
+                            setWristSerialBusy(false);
+                          }
+                        }}
+                        className="min-h-10 px-4 py-2 rounded-lg text-sm font-medium glass-card text-foreground cursor-pointer select-none transition active:scale-[0.98] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3b82f6] focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Disconnect
+                      </button>
+                      <button
+                        type="button"
+                        disabled={wristSerialBusy || wristSimulateBusy}
+                        onClick={async () => {
+                          setWristSerialError(null);
+                          setWristBuzzFeedback(null);
+                          setWristSimulateBusy(true);
+                          try {
+                            await sendArduinoVibrate();
+                            setWristBuzzFeedback(
+                              `Buzz command sent at ${new Date().toLocaleTimeString()} — you should feel one pulse.`
+                            );
+                            showSavedMessage();
+                          } catch (e) {
+                            setWristSerialError(e instanceof Error ? e.message : 'Test failed');
+                          } finally {
+                            setWristSimulateBusy(false);
+                          }
+                        }}
+                        className="min-h-10 px-4 py-2 rounded-lg text-sm font-semibold bg-[#22c55e]/20 border-2 border-[#22c55e]/50 text-foreground cursor-pointer select-none transition shadow-sm active:scale-[0.98] hover:bg-[#22c55e]/30 hover:border-[#22c55e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#22c55e] focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60 disabled:cursor-wait"
+                      >
+                        {wristSimulateBusy ? 'Sending…' : 'Simulate distraction alert'}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Plug in the XIAO, upload the sketch, then click <strong className="text-foreground">Connect USB device</strong> here — that is separate from Arduino IDE. Close Arduino IDE (or Serial Monitor) before connecting in the browser, or the COM port will be busy. Pick the same board in the browser popup.
+                    </p>
+                    {wristSerialConnected && (
+                      <p className="text-sm text-[#22c55e]">Serial link ready — wrist buzz will match session alerts.</p>
+                    )}
+                    {!wristSerialConnected && settings.wristBandEnabled && isWebSerialSupported() && (
+                      <p className="text-sm text-amber-600 dark:text-amber-400">
+                        Click <strong className="text-foreground">Connect USB device</strong> first — the green button only works after the browser has the port.
+                      </p>
+                    )}
+                    {wristBuzzFeedback && (
+                      <p className="text-sm font-medium text-[#22c55e] border border-[#22c55e]/40 rounded-lg px-3 py-2 bg-[#22c55e]/10">
+                        {wristBuzzFeedback}
+                      </p>
+                    )}
+                    {wristSerialError && (
+                      <p className="text-sm text-destructive border border-destructive/30 rounded-lg px-3 py-2">{wristSerialError}</p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

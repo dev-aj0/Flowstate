@@ -24,6 +24,7 @@ const defaultSettings: AppSettings = {
   sessionDuration: 25,
   theme: 'default',
   useMockData: false,
+  wristBandEnabled: false,
 };
 
 // User Profile

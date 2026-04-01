@@ -1,14 +1,20 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Play, Pause, Square, Timer, Activity, AlertCircle, Volume2, VolumeX, SkipForward } from 'lucide-react';
+import { Play, Pause, Square, Timer, Activity, AlertCircle, Volume2, VolumeX, SkipForward, Watch } from 'lucide-react';
 import { useEEGStream } from '@/hooks/use-eeg-stream';
+import { useArduinoWrist } from '@/hooks/use-arduino-wrist';
 import { useSessionTimer } from '@/hooks/use-session-timer';
 import { EEGWaveform } from '@/components/eeg-waveform';
 import { FocusMeter } from '@/components/focus-meter';
 import { AlertModal } from '@/components/alert-modal';
 import { addSession, getSettings, saveSettings, getUserProfile } from '@/lib/storage';
 import { wsManager } from '@/lib/websocket-manager';
+import {
+  sendArduinoVibrate,
+  isArduinoSerialConnected,
+  isWebSerialSupported,
+} from '@/lib/arduino-serial';
 import { useRouter } from 'next/navigation';
 import { 
   getOptimizedTimer, 
@@ -32,8 +38,15 @@ export default function SessionPage() {
   const [dynamicFocusDuration, setDynamicFocusDuration] = useState<number | null>(null);
   const [llmAnalyzing, setLlmAnalyzing] = useState(false);
   const [lastLlmAnalysis, setLastLlmAnalysis] = useState<{ time: number; reasoning?: string } | null>(null);
+  const [wristMockHint, setWristMockHint] = useState<string | null>(null);
 
   const { currentReading, focusState, history, resetHistory, connected, museConnected, mockMode, connectionError } = useEEGStream(sessionActive);
+
+  useArduinoWrist({
+    enabled: !!settings.wristBandEnabled,
+    sessionActive,
+    alertTriggered: focusState.alertTriggered,
+  });
   
   // Compute current timer duration based on break state and optimizations
   const currentTimerDuration = isBreak 
@@ -252,23 +265,51 @@ export default function SessionPage() {
               <Timer className="w-6 h-6 text-[#3b82f6]" />
               <span className="text-3xl font-bold text-foreground">{timer.formattedTime}</span>
             </div>
-            <button
-              onClick={() => {
-                const newSettings = { ...settings, soundEnabled: !settings.soundEnabled };
-                setSettings(newSettings);
-                saveSettings(newSettings);
-              }}
-              className={`p-2 rounded-lg transition-colors ${
-                settings.soundEnabled ? 'bg-[#3b82f6] text-white' : 'glass-card text-muted-foreground hover:text-foreground'
-              }`}
-              title={settings.soundEnabled ? 'Mute' : 'Unmute'}
-            >
-              {settings.soundEnabled ? (
-                <Volume2 className="w-5 h-5" />
-              ) : (
-                <VolumeX className="w-5 h-5" />
+            <div className="flex items-center gap-1">
+              {settings.wristBandEnabled && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setWristMockHint(null);
+                    if (!isWebSerialSupported()) {
+                      setWristMockHint('Use Chrome or Edge for Web Serial.');
+                      return;
+                    }
+                    if (!isArduinoSerialConnected()) {
+                      setWristMockHint('Connect XIAO in Settings → Alerts first.');
+                      return;
+                    }
+                    try {
+                      await sendArduinoVibrate();
+                      setWristMockHint('Buzz sent — check the motor.');
+                    } catch (e) {
+                      setWristMockHint(e instanceof Error ? e.message : 'Buzz failed');
+                    }
+                  }}
+                  className="p-2 rounded-lg glass-card text-muted-foreground hover:text-foreground cursor-pointer select-none transition active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#22c55e]"
+                  title="Simulate distraction alert (wrist buzz)"
+                >
+                  <Watch className="w-5 h-5" />
+                </button>
               )}
-            </button>
+              <button
+                onClick={() => {
+                  const newSettings = { ...settings, soundEnabled: !settings.soundEnabled };
+                  setSettings(newSettings);
+                  saveSettings(newSettings);
+                }}
+                className={`p-2 rounded-lg transition-colors ${
+                  settings.soundEnabled ? 'bg-[#3b82f6] text-white' : 'glass-card text-muted-foreground hover:text-foreground'
+                }`}
+                title={settings.soundEnabled ? 'Mute' : 'Unmute'}
+              >
+                {settings.soundEnabled ? (
+                  <Volume2 className="w-5 h-5" />
+                ) : (
+                  <VolumeX className="w-5 h-5" />
+                )}
+              </button>
+            </div>
           </div>
           <div className="w-full h-1 bg-white/10 dark:bg-white/10 light:bg-black/10 rounded-full mt-2 overflow-hidden">
             <div
@@ -277,6 +318,9 @@ export default function SessionPage() {
             />
           </div>
           {/* Pomodoro status pill */}
+          {settings.wristBandEnabled && wristMockHint && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 max-w-[220px] text-right ml-auto">{wristMockHint}</p>
+          )}
           {sessionActive && pomodoroEnabled && (
             <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium animate-slide-in-up"
               style={{

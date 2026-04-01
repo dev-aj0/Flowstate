@@ -71,4 +71,6 @@ export interface AppSettings {
   theme?: 'default' | 'ocean' | 'forest';
   /** Use simulated EEG data when no Muse is connected (toggle in Settings) */
   useMockData?: boolean;
+  /** Pulse Seeed XIAO wrist vibrator when distraction alert fires (Web Serial) */
+  wristBandEnabled?: boolean;
 }
