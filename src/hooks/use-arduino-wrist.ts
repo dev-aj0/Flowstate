@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from 'react';
-import { sendArduinoVibrate } from '@/lib/arduino-serial';
+import { sendWristVibrate } from '@/lib/wrist-haptic';
 
 /**
  * When distraction alert fires (same moment as the popup), pulse the wrist band.
@@ -23,7 +23,7 @@ export function useArduinoWrist(options: {
     const rising = alertTriggered && !prevAlert.current;
     prevAlert.current = alertTriggered;
     if (rising) {
-      void sendArduinoVibrate().catch(() => {
+      void sendWristVibrate().catch(() => {
         /* not connected or port busy — session continues without wrist buzz */
       });
     }

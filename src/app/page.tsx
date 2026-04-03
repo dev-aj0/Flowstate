@@ -7,10 +7,10 @@ import { FocusMeter } from '@/components/focus-meter';
 import Link from 'next/link';
 import { getSessions, getUserProfile, getSettings } from '@/lib/storage';
 import {
-  sendArduinoVibrate,
-  isArduinoSerialConnected,
-  isWebSerialSupported,
-} from '@/lib/arduino-serial';
+  sendWristVibrate,
+  isWristConnected,
+  isWristTransportSupported,
+} from '@/lib/wrist-haptic';
 import { SessionData, UserProfile } from '@/types';
 import { useEEGStream } from '@/hooks/use-eeg-stream';
 
@@ -94,7 +94,7 @@ export default function Dashboard() {
             <div>
               <p className="font-medium text-foreground">Test wrist vibration</p>
               <p className="text-sm text-muted-foreground">
-                Sends the same USB command as a real distraction alert. Use this to verify your Seeed XIAO before a session.
+                Sends the same command as a real distraction alert (USB or BLE). Use this to verify your Seeed XIAO before a session.
               </p>
             </div>
           </div>
@@ -103,16 +103,20 @@ export default function Dashboard() {
               type="button"
               onClick={async () => {
                 setWristMockHint(null);
-                if (!isWebSerialSupported()) {
-                  setWristMockHint('Use Chrome or Edge on desktop. Web Serial is not available in this browser.');
+                if (!isWristTransportSupported()) {
+                  setWristMockHint(
+                    'Use Chrome or Edge. USB needs Web Serial; Bluetooth needs Web Bluetooth.'
+                  );
                   return;
                 }
-                if (!isArduinoSerialConnected()) {
-                  setWristMockHint('Connect the XIAO first: Settings → Alerts → Connect USB device.');
+                if (!isWristConnected()) {
+                  setWristMockHint(
+                    'Connect the XIAO in Settings → Alerts (USB or Bluetooth, depending on your choice).'
+                  );
                   return;
                 }
                 try {
-                  await sendArduinoVibrate();
+                  await sendWristVibrate();
                   setWristMockHint('Sent — you should feel one buzz.');
                 } catch (e) {
                   setWristMockHint(e instanceof Error ? e.message : 'Could not send to the device.');

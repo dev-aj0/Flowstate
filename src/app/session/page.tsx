@@ -11,10 +11,10 @@ import { AlertModal } from '@/components/alert-modal';
 import { addSession, getSettings, saveSettings, getUserProfile } from '@/lib/storage';
 import { wsManager } from '@/lib/websocket-manager';
 import {
-  sendArduinoVibrate,
-  isArduinoSerialConnected,
-  isWebSerialSupported,
-} from '@/lib/arduino-serial';
+  sendWristVibrate,
+  isWristConnected,
+  isWristTransportSupported,
+} from '@/lib/wrist-haptic';
 import { useRouter } from 'next/navigation';
 import { 
   getOptimizedTimer, 
@@ -271,16 +271,16 @@ export default function SessionPage() {
                   type="button"
                   onClick={async () => {
                     setWristMockHint(null);
-                    if (!isWebSerialSupported()) {
-                      setWristMockHint('Use Chrome or Edge for Web Serial.');
+                    if (!isWristTransportSupported()) {
+                      setWristMockHint('Use Chrome or Edge (Web Serial or Web Bluetooth).');
                       return;
                     }
-                    if (!isArduinoSerialConnected()) {
-                      setWristMockHint('Connect XIAO in Settings → Alerts first.');
+                    if (!isWristConnected()) {
+                      setWristMockHint('Connect XIAO in Settings → Alerts (USB or Bluetooth).');
                       return;
                     }
                     try {
-                      await sendArduinoVibrate();
+                      await sendWristVibrate();
                       setWristMockHint('Buzz sent — check the motor.');
                     } catch (e) {
                       setWristMockHint(e instanceof Error ? e.message : 'Buzz failed');

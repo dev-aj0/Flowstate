@@ -24,12 +24,58 @@ declare global {
 }
 
 const BAUD = 115200;
-const VIBRATE_LINE = 'V\n';
+/** Line ending CRLF helps some USB-serial stacks; Arduino sketch trims to "V". */
+const VIBRATE_LINE = 'V\r\n';
+
+const encoder = new TextEncoder();
 
 let port: SerialPort | null = null;
 let writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
+let serialReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+let drainSerialReadLoop = false;
 
-const encoder = new TextEncoder();
+/** USB CDC can back up if the device sends (e.g. Serial.println) and the host never reads — second writes then fail. */
+function startDrainingSerialInput(p: SerialPort) {
+  stopDrainingSerialInput();
+  if (!p.readable) return;
+  try {
+    serialReader = p.readable.getReader();
+    drainSerialReadLoop = false;
+    void (async () => {
+      const r = serialReader;
+      if (!r) return;
+      try {
+        for (;;) {
+          if (drainSerialReadLoop) break;
+          const { done, value } = await r.read();
+          if (done) break;
+          void value; // discard — keeps device TX from blocking
+        }
+      } catch {
+        /* reader cancelled or port closed */
+      }
+    })();
+  } catch {
+    serialReader = null;
+  }
+}
+
+function stopDrainingSerialInput() {
+  drainSerialReadLoop = true;
+  if (serialReader) {
+    try {
+      void serialReader.cancel();
+    } catch {
+      /* ignore */
+    }
+    try {
+      serialReader.releaseLock();
+    } catch {
+      /* ignore */
+    }
+    serialReader = null;
+  }
+}
 
 export function isWebSerialSupported(): boolean {
   return typeof navigator !== 'undefined' && !!navigator.serial;
@@ -52,9 +98,11 @@ export async function connectArduinoSerial(): Promise<void> {
   }
   port = p;
   writer = p.writable.getWriter();
+  startDrainingSerialInput(p);
 }
 
 export async function disconnectArduinoSerial(): Promise<void> {
+  stopDrainingSerialInput();
   if (writer) {
     try {
       writer.releaseLock();
@@ -82,6 +130,7 @@ export async function sendArduinoVibrate(): Promise<void> {
     );
   }
   try {
+    await writer.ready;
     await writer.write(encoder.encode(VIBRATE_LINE));
   } catch (e) {
     console.warn('Arduino serial write failed:', e);

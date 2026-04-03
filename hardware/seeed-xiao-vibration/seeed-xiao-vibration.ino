@@ -1,41 +1,53 @@
 /**
- * Seeed XIAO nRF52840 Plus — wrist vibration motor for Flowstate.
+ * Flowstate wrist — Seeed XIAO nRF52840 Plus, 115200 baud, motor on D2 (pin 2).
  *
- * Board setup (Arduino IDE 2.x):
- *   1. File → Preferences → Additional boards URLs:
- *      https://files.seeedstudio.com/arduino/package_seeeduino_boards_index.json
- *   2. Tools → Board → Boards Manager → search "seeed nrf52" → install
- *      "Seeed nRF52 mbed-enabled Boards" (recommended; Serial works without extra libs)
- *   3. Tools → Board → Seeed nRF52 mbed-enabled Boards → Seeed XIAO nRF52840 Plus
- *   4. Tools → Port → pick the XIAO (often "Seeed XIAO nRF52840" on COMx)
+ * SELF-TEST: On reset/upload the motor should buzz THREE short times BEFORE you
+ * open Serial Monitor. If you never get those three chirps, the problem is
+ * wiring or the pin — not the serial command.
  *
- * Wiring — NPN low-side switch (example): motor (+) → 3V3, motor (−) → collector,
- *   emitter → GND, base → ~220Ω → D1. Tie XIAO GND to the same ground as the emitter.
- *   Add a flyback diode across the motor (cathode at 3V3 side) if the motor is inductive.
- * Code uses D1 = P0.03 = Arduino digital pin 1.
- *
- * Serial: 115200 baud over USB. The app sends a line "V" to trigger one ~250 ms pulse.
+ * Serial Monitor: 115200, line ending "Newline". Type V and Send.
  */
 
-const int MOTOR_PIN = 1; // D1 (P0.03) on XIAO nRF52840 / Plus
-const unsigned long PULSE_MS = 250;
+const int MOTOR_PIN = 0; // silkscreen D2
+const unsigned long PULSE_MS = 800;
 
-void setup() {
-  Serial.begin(115200);
-  Serial.setTimeout(100); // ms — applies to readStringUntil (default 1000 is sluggish)
-  pinMode(MOTOR_PIN, OUTPUT);
+void pulseMs(unsigned long ms) {
+  digitalWrite(MOTOR_PIN, HIGH);
+  delay(ms);
   digitalWrite(MOTOR_PIN, LOW);
 }
 
+void setup() {
+  pinMode(MOTOR_PIN, OUTPUT);
+  digitalWrite(MOTOR_PIN, LOW);
+
+  // Proof the pin + transistor + motor work — no USB input required
+  delay(200);
+  for (int i = 0; i < 3; i++) {
+    pulseMs(120);
+    delay(180);
+  }
+
+  Serial.begin(115200);
+  Serial.setTimeout(150);
+  delay(200);
+  Serial.println("ready — send V + newline");
+}
+
 void loop() {
-  if (Serial.available() <= 0) {
+  if (!Serial.available()) {
     return;
   }
+
+  // Whole line from Serial Monitor ("V" or "V\r") or Flowstate ("V\r\n")
   String line = Serial.readStringUntil('\n');
   line.trim();
-  if (line.equalsIgnoreCase("V")) {
-    digitalWrite(MOTOR_PIN, HIGH);
-    delay(PULSE_MS);
-    digitalWrite(MOTOR_PIN, LOW);
+  if (line.length() == 0) {
+    return;
+  }
+
+  char first = line.charAt(0);
+  if (first == 'V' || first == 'v') {
+    pulseMs(PULSE_MS);
   }
 }
