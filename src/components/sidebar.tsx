@@ -26,7 +26,7 @@ export function Sidebar() {
           <Brain className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h1 className="text-lg font-semibold text-foreground">NeuroCoach</h1>
+          <h1 className="text-lg font-semibold text-foreground">Flowstate</h1>
           <p className="text-xs text-muted-foreground">Focus AI</p>
         </div>
       </div>
@@ -75,7 +75,7 @@ export function Sidebar() {
       {/* Focus Indicator */}
       <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
         <Zap className="w-3 h-3 text-[#3b82f6]" />
-        <span>Powered by AJ</span>
+        <span>Flowstate</span>
       </div>
     </aside>
   );

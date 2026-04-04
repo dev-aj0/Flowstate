@@ -52,7 +52,7 @@ else:
     resolve_stream = _pylsl_module.resolve_stream
     LostError = _pylsl_module.LostError
 
-app = FastAPI(title="NeuroCoach Backend")
+app = FastAPI(title="Flowstate Backend")
 
 # CORS middleware for Next.js frontend
 # Supports both development and production origins
@@ -651,7 +651,7 @@ async def websocket_endpoint(websocket: WebSocket):
         # Send connection confirmation with current status
         await websocket.send_json({
             "type": "connected",
-            "message": "Connected to NeuroCoach backend",
+            "message": "Connected to Flowstate backend",
             "museConnected": muse_stream is not None,
             "mockMode": mock_mode,
             "streamActive": stream_active,

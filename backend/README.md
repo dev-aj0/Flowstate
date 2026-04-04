@@ -1,4 +1,4 @@
-# NeuroCoach Backend
+# Flowstate Backend
 
 Python backend for connecting to Muse headset and streaming EEG data to the Next.js frontend.
 

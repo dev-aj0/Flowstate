@@ -67,7 +67,7 @@ The backend is already configured to accept network connections (`host="0.0.0.0"
 1. **Windows Firewall** - Allow port 8001:
    ```powershell
    # Run PowerShell as Administrator
-   New-NetFirewallRule -DisplayName "NeuroCoach Backend" -Direction Inbound -LocalPort 8001 -Protocol TCP -Action Allow
+   New-NetFirewallRule -DisplayName "Flowstate Backend" -Direction Inbound -LocalPort 8001 -Protocol TCP -Action Allow
    ```
    
    Or manually:
