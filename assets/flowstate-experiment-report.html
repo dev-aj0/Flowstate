@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FlowState pilot — session metrics (illustrative)</title>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0f172a;
+      --muted: #64748b;
+      --border: #cbd5e1;
+      --panel: #ffffff;
+      --wash: #f1f5f9;
+      --accent: #0e7490;
+      --control: #c2410c;
+      --treat: #047857;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+      background: linear-gradient(180deg, var(--wash) 0%, #e2e8f0 100%);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+    .paper {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 40px 28px 56px;
+    }
+    header.doc {
+      border-bottom: 2px solid var(--ink);
+      padding-bottom: 20px;
+      margin-bottom: 28px;
+    }
+    header.doc h1 {
+      font-family: "IBM Plex Serif", Georgia, serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 0 0 8px;
+      letter-spacing: -0.02em;
+    }
+    header.doc .meta {
+      font-size: 0.8125rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .banner {
+      font-size: 0.78rem;
+      background: #fffbeb;
+      border-left: 4px solid #d97706;
+      padding: 12px 16px;
+      margin-bottom: 28px;
+      color: #78350f;
+      line-height: 1.55;
+    }
+    .figure {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 20px 16px 8px;
+      margin-bottom: 32px;
+      box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+    }
+    .figure .cap {
+      font-family: "IBM Plex Serif", Georgia, serif;
+      font-size: 0.8125rem;
+      color: var(--muted);
+      margin: 12px 4px 0;
+      line-height: 1.55;
+    }
+    .figure .cap strong { color: var(--ink); font-weight: 600; }
+    .figure h2 {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      margin: 0 0 4px;
+      font-weight: 600;
+    }
+    .figure .title {
+      font-family: "IBM Plex Serif", Georgia, serif;
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 0 0 16px;
+      color: var(--ink);
+    }
+    .plot { width: 100%; height: 380px; }
+    .plot.tall { height: 420px; }
+    .plot.compact { height: 300px; }
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 14px 16px;
+      font-size: 0.8125rem;
+    }
+    .stat-card .label { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .stat-card .value { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 4px; }
+    .stat-card .sub { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+    table.data {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+      font-variant-numeric: tabular-nums;
+    }
+    table.data th, table.data td {
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      text-align: right;
+    }
+    table.data th:first-child, table.data td:first-child { text-align: left; }
+    table.data th {
+      background: #e2e8f0;
+      font-weight: 600;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #475569;
+    }
+    table.data tbody tr:nth-child(even) { background: #f8fafc; }
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin-bottom: 4px;
+    }
+    .methods {
+      font-size: 0.8125rem;
+      color: #475569;
+      padding: 20px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      line-height: 1.6;
+    }
+    .methods h3 {
+      font-family: "IBM Plex Serif", Georgia, serif;
+      font-size: 0.95rem;
+      margin: 0 0 12px;
+      color: var(--ink);
+    }
+    .methods ul { margin: 0; padding-left: 20px; }
+    .methods li { margin-bottom: 8px; }
+    .results {
+      font-size: 0.875rem;
+      color: #334155;
+      padding: 24px 22px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      line-height: 1.65;
+      margin-bottom: 28px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+    }
+    .results h2 {
+      font-family: "IBM Plex Serif", Georgia, serif;
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin: 0 0 14px;
+      color: var(--ink);
+      letter-spacing: -0.02em;
+    }
+    .results h3 {
+      font-family: "IBM Plex Serif", Georgia, serif;
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 22px 0 10px;
+      color: var(--ink);
+    }
+    .results h3:first-of-type { margin-top: 0; }
+    .results p { margin: 0 0 12px; }
+    .results p:last-child { margin-bottom: 0; }
+    code { font-size: 0.85em; background: #f1f5f9; padding: 1px 5px; border-radius: 3px; }
+    .export-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    }
+    .export-toolbar button, .figure-actions button {
+      font-family: inherit;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #0f172a;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .export-toolbar button:hover, .figure-actions button:hover {
+      background: #e2e8f0;
+      border-color: #94a3b8;
+    }
+    .export-toolbar button.primary {
+      background: #0f172a;
+      color: #fff;
+      border-color: #0f172a;
+    }
+    .export-toolbar button.primary:hover { background: #1e293b; border-color: #1e293b; }
+    .export-hint { font-size: 0.75rem; color: var(--muted); margin: 0; flex: 1; min-width: 200px; }
+    .figure-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .figure-actions .tag {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="paper">
+    <header class="doc">
+      <h1>Effect of FlowState feedback on self-reported study focus during mathematics homework</h1>
+      <p class="meta">
+        <em>Exploratory within-subject pilot · Two participants · 6 consecutive study days · 30 min sessions</em><br />
+        Control: days 1–3 (no device). Intervention: days 4–6 (FlowState + wristband).<br />
+        AJ: 16:00–16:30 · Peter: 16:45–17:15 · Task and environment held constant.
+      </p>
+    </header>
+
+    <div class="banner">
+      <strong>Synthetic demonstration dataset.</strong> Values are plausible for a short classroom pilot and match the described procedure. Replace with exported FlowState session logs for publication. Effect sizes are modest by design.
+    </div>
+
+    <div class="export-toolbar">
+      <button type="button" class="primary" id="exportAllPNG">Download all figures + table (PNG, 2×)</button>
+      <p class="export-hint">PNG export captures each block (label, title, chart or table, caption). Uses <code>html2canvas</code> at 2× resolution. The camera icon on each chart still exports the plot only.</p>
+    </div>
+
+    <div class="stats-row" id="statCards"></div>
+
+    <div class="results">
+      <h2>Results and analysis</h2>
+
+      <h3>What we found</h3>
+      <p>
+        In this small pilot, both participants averaged slightly higher focus and fewer distraction alerts during FlowState (study days 4–6) than during the control days (1–3) without the device.
+        The shifts were modest—a few percentage points on the focus index and roughly two fewer alerts per 30-minute session on average.
+        With only two people, we describe a possible pattern, not proof that FlowState caused the change.
+      </p>
+
+      <h3>Figures</h3>
+      <p>
+        <strong>Figure 1</strong> shows mean focus and mean alerts for each person in each phase, with bars for session-to-session spread.
+        <strong>Figure 2</strong> shows scores by calendar day; numbers moved around from day to day, but after the switch to FlowState there was a small upward step rather than a smooth line.
+        The β/α ratio generally moved with the focus reading, which fits how the app is built.
+        <strong>Figure 3</strong> plots each session’s focus against alerts; FlowState sessions tended toward higher focus and fewer alerts than most control sessions.
+        For a poster or write-up, these three figures are enough to tell the story—you do not need every number in a table.
+      </p>
+
+      <h3>How the prototype worked</h3>
+      <p>
+        In the FlowState phase, participants wore a Muse headband.
+        The app used beta and alpha power from the EEG to show a focus percentage and to count alerts when focus fell below a set level.
+        A wristband gave short haptic feedback.
+        In control, they did the same homework without the headband or app, so the comparison is “device on” versus “device off,” not a harder or easier assignment.
+      </p>
+
+      <h3>Statistics</h3>
+      <p>
+        We used descriptive statistics only (means and standard deviations), not tests like <em>t</em>-tests or ANOVA.
+        Two participants and three sessions per phase is too small for those tests to be meaningful.
+        The error bars in Figure 1 show how much the three sessions varied within each phase; they are not confidence intervals for a large population.
+      </p>
+
+      <h3>Limits</h3>
+      <p>
+        These results apply only to this homework block and schedule.
+        The values in this report are set up as an example for charts and wording; swap in your own real session data when you submit, and follow your competition rules about sharing raw data.
+      </p>
+    </div>
+
+    <div class="figure" id="figureExport1">
+      <h2>Figure 1</h2>
+      <div class="title">Group means ± SD (n = 3 sessions per condition per participant)</div>
+      <div class="figure-actions">
+        <span class="tag">Export</span>
+        <button type="button" class="btn-export-png" data-export="figureExport1" data-filename="flowstate_figure1_means_sd.png">Save PNG</button>
+      </div>
+      <div id="fig1" class="plot"></div>
+      <p class="cap">
+        <strong>Figure 1.</strong> Mean session focus index (%) and mean distraction-alert count per 30 min block.
+        Error bars show sample SD across the three sessions in each phase. Parallel trends across participants suggest a consistent but small within-subject shift—not a substitute for powered inferential statistics.
+      </p>
+    </div>
+
+    <div class="figure" id="figureExport2">
+      <h2>Figure 2</h2>
+      <div class="title">Session-level trajectories with intervention boundary</div>
+      <div class="figure-actions">
+        <span class="tag">Export</span>
+        <button type="button" class="btn-export-png" data-export="figureExport2" data-filename="flowstate_figure2_timeseries.png">Save PNG</button>
+      </div>
+      <div id="fig2" class="plot tall"></div>
+      <p class="cap">
+        <strong>Figure 2.</strong> Focus index (left axis) and derived β/α spectral power ratio (right axis) by calendar day.
+        Shaded region marks the crossover from control to FlowState. Day-to-day variance dominates; the intervention effect is visible as a slight upward step in aggregate, not a noise-free jump.
+      </p>
+    </div>
+
+    <div class="figure" id="figureExport3">
+      <h2>Figure 3</h2>
+      <div class="title">Session-level focus vs distraction alerts (association and phase)</div>
+      <div class="figure-actions">
+        <span class="tag">Export</span>
+        <button type="button" class="btn-export-png" data-export="figureExport3" data-filename="flowstate_figure3_focus_vs_alerts_scatter.png">Save PNG</button>
+      </div>
+      <div id="fig3" class="plot"></div>
+      <p class="cap">
+        <strong>Figure 3.</strong> Each marker is one 30 min session. Color encodes phase; marker shape encodes participant.
+        This complements Figures 1–2 by showing how alert burden co-varies with the focus index at the session level, and whether FlowState sessions sit in a different region of this space than control sessions.
+      </p>
+    </div>
+
+    <div class="figure" id="figureExportTable">
+      <h2>Table 1</h2>
+      <div class="title">Raw session records</div>
+      <div class="figure-actions">
+        <span class="tag">Export</span>
+        <button type="button" class="btn-export-png" data-export="figureExportTable" data-filename="flowstate_table1_session_records.png">Save PNG</button>
+      </div>
+      <div class="table-scroll">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Day</th>
+              <th>Phase</th>
+              <th>ID</th>
+              <th>Focus %</th>
+              <th>Alerts</th>
+              <th>β̄ (%)</th>
+              <th>ᾱ (%)</th>
+              <th>β/α</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <p class="cap">
+        <strong>Table 1.</strong> Session-level metrics underlying the figures above.
+      </p>
+    </div>
+
+    <div class="methods">
+      <h3>Operational definitions</h3>
+      <ul>
+        <li><strong>Focus %</strong> — Session mean of the in-app focus meter (β/α-derived vs calibration threshold).</li>
+        <li><strong>Alerts</strong> — Count of threshold-based refocus events per 30 min.</li>
+        <li><strong>β̄, ᾱ</strong> — Mean band power as % of total FFT power (Muse → FlowState backend).</li>
+        <li><strong>β/α</strong> — Ratio of mean beta to mean alpha power; co-varies with focus index but is not identical to the UI %.</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    const rows = [
+      { day: 1, phase: 'Control', who: 'AJ', focus: 48, alerts: 11, b: 18.2, a: 34.6 },
+      { day: 2, phase: 'Control', who: 'AJ', focus: 52, alerts: 9, b: 19.1, a: 32.8 },
+      { day: 3, phase: 'Control', who: 'AJ', focus: 51, alerts: 10, b: 18.7, a: 33.4 },
+      { day: 4, phase: 'FlowState', who: 'AJ', focus: 54, alerts: 8, b: 20.4, a: 31.2 },
+      { day: 5, phase: 'FlowState', who: 'AJ', focus: 56, alerts: 7, b: 21.1, a: 30.5 },
+      { day: 6, phase: 'FlowState', who: 'AJ', focus: 53, alerts: 6, b: 20.0, a: 31.8 },
+      { day: 1, phase: 'Control', who: 'Peter', focus: 50, alerts: 12, b: 17.9, a: 35.1 },
+      { day: 2, phase: 'Control', who: 'Peter', focus: 53, alerts: 10, b: 18.8, a: 33.0 },
+      { day: 3, phase: 'Control', who: 'Peter', focus: 52, alerts: 11, b: 18.4, a: 33.6 },
+      { day: 4, phase: 'FlowState', who: 'Peter', focus: 54, alerts: 9, b: 20.1, a: 31.5 },
+      { day: 5, phase: 'FlowState', who: 'Peter', focus: 57, alerts: 8, b: 21.3, a: 30.2 },
+      { day: 6, phase: 'FlowState', who: 'Peter', focus: 55, alerts: 7, b: 20.6, a: 31.0 },
+    ];
+
+    rows.forEach(r => { r.ratio = r.b / r.a; });
+
+    function mean(arr, key) {
+      const v = arr.map(x => x[key]);
+      return v.reduce((s, x) => s + x, 0) / v.length;
+    }
+    function sd(arr, key) {
+      const m = mean(arr, key);
+      const n = arr.length;
+      if (n < 2) return 0;
+      const v = arr.reduce((s, x) => s + (x[key] - m) ** 2, 0) / (n - 1);
+      return Math.sqrt(v);
+    }
+
+    const ajC = rows.filter(r => r.who === 'AJ' && r.phase === 'Control');
+    const ajF = rows.filter(r => r.who === 'AJ' && r.phase === 'FlowState');
+    const peC = rows.filter(r => r.who === 'Peter' && r.phase === 'Control');
+    const peF = rows.filter(r => r.who === 'Peter' && r.phase === 'FlowState');
+
+    const pooledC = [...ajC, ...peC];
+    const pooledF = [...ajF, ...peF];
+
+    const cardEl = document.getElementById('statCards');
+    [
+      { label: 'Pooled Δ focus (%)', sub: 'Mean(FlowState) − Mean(Control), both N', val: (mean(pooledF, 'focus') - mean(pooledC, 'focus')).toFixed(1) },
+      { label: 'Pooled Δ alerts / 30 min', sub: 'Negative = fewer alerts', val: (mean(pooledF, 'alerts') - mean(pooledC, 'alerts')).toFixed(2) },
+      { label: 'Design', sub: 'Within-subject · 2 × (3+3) sessions', val: 'n = 12' },
+    ].forEach(c => {
+      const d = document.createElement('div');
+      d.className = 'stat-card';
+      d.innerHTML = `<div class="label">${c.label}</div><div class="value">${c.val}</div><div class="sub">${c.sub}</div>`;
+      cardEl.appendChild(d);
+    });
+
+    const tbody = document.getElementById('tbody');
+    rows.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${r.day}</td><td>${r.phase}</td><td>${r.who}</td><td>${r.focus}</td><td>${r.alerts}</td><td>${r.b.toFixed(1)}</td><td>${r.a.toFixed(1)}</td><td>${r.ratio.toFixed(3)}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    const plotConfig = {
+      responsive: true,
+      displayModeBar: true,
+      displaylogo: false,
+      toImageButtonOptions: {
+        format: 'png',
+        filename: 'flowstate_chart',
+        scale: 2,
+        width: 1600,
+        height: 900,
+      },
+      modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+    };
+
+    const errStyle = { type: 'data', visible: true, thickness: 1.2, color: '#2d2d2d', width: 4 };
+
+    const plotlyLayout = {
+      template: 'plotly_white',
+      paper_bgcolor: '#ffffff',
+      plot_bgcolor: '#ffffff',
+      font: { family: 'Arial, Helvetica, Liberation Sans, sans-serif', size: 12, color: '#1a1a1a' },
+      margin: { l: 52, r: 52, t: 28, b: 44 },
+      showlegend: true,
+      legend: { orientation: 'h', y: -0.18, x: 0.5, xanchor: 'center', font: { size: 11 } },
+    };
+
+    const fig1clean = [
+      { type: 'bar', x: ['Control', 'FlowState'], y: [mean(ajC, 'focus'), mean(ajF, 'focus')],
+        error_y: { ...errStyle, array: [sd(ajC, 'focus'), sd(ajF, 'focus')] },
+        marker: { color: ['#e8a87c', '#88d8b0'], line: { color: '#333333', width: 0.8 } }, name: 'Focus %', showlegend: false,
+        xaxis: 'x', yaxis: 'y' },
+      { type: 'bar', x: ['Control', 'FlowState'], y: [mean(peC, 'focus'), mean(peF, 'focus')],
+        error_y: { ...errStyle, array: [sd(peC, 'focus'), sd(peF, 'focus')] },
+        marker: { color: ['#e8a87c', '#88d8b0'], line: { color: '#333333', width: 0.8 } }, name: 'Focus %', showlegend: false,
+        xaxis: 'x2', yaxis: 'y2' },
+      { type: 'bar', x: ['Control', 'FlowState'], y: [mean(ajC, 'alerts'), mean(ajF, 'alerts')],
+        error_y: { ...errStyle, array: [sd(ajC, 'alerts'), sd(ajF, 'alerts')] },
+        marker: { color: ['#e8a87c', '#88d8b0'], line: { color: '#333333', width: 0.8 } }, name: 'Alerts', showlegend: false,
+        xaxis: 'x3', yaxis: 'y3' },
+      { type: 'bar', x: ['Control', 'FlowState'], y: [mean(peC, 'alerts'), mean(peF, 'alerts')],
+        error_y: { ...errStyle, array: [sd(peC, 'alerts'), sd(peF, 'alerts')] },
+        marker: { color: ['#e8a87c', '#88d8b0'], line: { color: '#333333', width: 0.8 } }, name: 'Alerts', showlegend: false,
+        xaxis: 'x4', yaxis: 'y4' },
+    ];
+
+    Plotly.newPlot('fig1', fig1clean, {
+      template: 'plotly_white',
+      paper_bgcolor: '#ffffff',
+      plot_bgcolor: '#ffffff',
+      font: { family: 'Arial, Helvetica, sans-serif', size: 12, color: '#1a1a1a' },
+      margin: { l: 48, r: 28, t: 56, b: 36 },
+      showlegend: false,
+      xaxis: { domain: [0, 0.45], anchor: 'y', title: 'Condition' },
+      yaxis: { domain: [0.55, 1], anchor: 'x', title: 'Focus %' },
+      xaxis2: { domain: [0.55, 1], anchor: 'y2', title: 'Condition' },
+      yaxis2: { domain: [0.55, 1], anchor: 'x2', title: 'Focus %' },
+      xaxis3: { domain: [0, 0.45], anchor: 'y3', title: 'Condition' },
+      yaxis3: { domain: [0, 0.42], anchor: 'x3', title: 'Alerts / 30 min' },
+      xaxis4: { domain: [0.55, 1], anchor: 'y4', title: 'Condition' },
+      yaxis4: { domain: [0, 0.42], anchor: 'x4', title: 'Alerts / 30 min' },
+      annotations: [
+        { text: 'AJ', x: 0.225, y: 1.02, xref: 'paper', yref: 'paper', showarrow: false, font: { size: 13, color: '#0f172a' } },
+        { text: 'Peter', x: 0.775, y: 1.02, xref: 'paper', yref: 'paper', showarrow: false, font: { size: 13, color: '#0f172a' } },
+        { text: 'Focus index', x: 0.225, y: 0.52, xref: 'paper', yref: 'paper', showarrow: false, font: { size: 10, color: '#64748b' } },
+        { text: 'Focus index', x: 0.775, y: 0.52, xref: 'paper', yref: 'paper', showarrow: false, font: { size: 10, color: '#64748b' } },
+        { text: 'Distraction alerts', x: 0.225, y: 0.48, xref: 'paper', yref: 'paper', showarrow: false, font: { size: 10, color: '#64748b' } },
+        { text: 'Distraction alerts', x: 0.775, y: 0.48, xref: 'paper', yref: 'paper', showarrow: false, font: { size: 10, color: '#64748b' } },
+      ],
+    }, plotConfig);
+
+    // Figure 2: dual y time series + shapes
+    const days = rows.filter(r => r.who === 'AJ').map(r => r.day);
+    const ajFocus = rows.filter(r => r.who === 'AJ').map(r => r.focus);
+    const peFocus = rows.filter(r => r.who === 'Peter').map(r => r.focus);
+    const ajRatio = rows.filter(r => r.who === 'AJ').map(r => r.ratio);
+    const peRatio = rows.filter(r => r.who === 'Peter').map(r => r.ratio);
+
+    Plotly.newPlot('fig2', [
+      {
+        x: days,
+        y: ajFocus,
+        name: 'AJ · Focus %',
+        mode: 'lines+markers',
+        line: { color: '#2563eb', width: 2 },
+        marker: { size: 8 },
+        yaxis: 'y',
+      },
+      {
+        x: days,
+        y: peFocus,
+        name: 'Peter · Focus %',
+        mode: 'lines+markers',
+        line: { color: '#7c3aed', width: 2, dash: 'dash' },
+        marker: { size: 8, symbol: 'diamond' },
+        yaxis: 'y',
+      },
+      {
+        x: days,
+        y: ajRatio,
+        name: 'AJ · β/α',
+        mode: 'lines+markers',
+        line: { color: '#0891b2' },
+        marker: { size: 6 },
+        yaxis: 'y2',
+      },
+      {
+        x: days,
+        y: peRatio,
+        name: 'Peter · β/α',
+        mode: 'lines+markers',
+        line: { color: '#be185d', dash: 'dot' },
+        marker: { size: 6 },
+        yaxis: 'y2',
+      },
+    ], {
+      ...plotlyLayout,
+      margin: { l: 56, r: 56, t: 40, b: 48 },
+      xaxis: {
+        title: 'Study day',
+        tickmode: 'linear',
+        dtick: 1,
+        range: [0.5, 6.5],
+        gridcolor: '#e2e8f0',
+        zeroline: false,
+      },
+      yaxis: {
+        title: 'Focus index (%)',
+        side: 'left',
+        gridcolor: '#e2e8f0',
+        range: [44, 60],
+      },
+      yaxis2: {
+        title: 'β / α (dimensionless)',
+        overlaying: 'y',
+        side: 'right',
+        range: [0.48, 0.72],
+        showgrid: false,
+      },
+      shapes: [
+        {
+          type: 'rect',
+          xref: 'x',
+          yref: 'paper',
+          x0: 0.5,
+          x1: 3.5,
+          y0: 0,
+          y1: 1,
+          fillcolor: '#fff7ed',
+          opacity: 0.35,
+          line: { width: 0 },
+        },
+        {
+          type: 'rect',
+          xref: 'x',
+          yref: 'paper',
+          x0: 3.5,
+          x1: 6.5,
+          y0: 0,
+          y1: 1,
+          fillcolor: '#ecfdf5',
+          opacity: 0.35,
+          line: { width: 0 },
+        },
+        {
+          type: 'line',
+          xref: 'x',
+          yref: 'paper',
+          x0: 3.5,
+          x1: 3.5,
+          y0: 0,
+          y1: 1,
+          line: { color: '#64748b', width: 2, dash: 'dash' },
+        },
+      ],
+      annotations: [
+        {
+          x: 2,
+          y: 1.02,
+          xref: 'x',
+          yref: 'paper',
+          text: 'Control',
+          showarrow: false,
+          font: { color: '#9a3412', size: 11 },
+        },
+        {
+          x: 5,
+          y: 1.02,
+          xref: 'x',
+          yref: 'paper',
+          text: 'FlowState',
+          showarrow: false,
+          font: { color: '#047857', size: 11 },
+        },
+      ],
+    }, plotConfig);
+
+    // Figure 3: session scatter — focus vs alerts
+    const ctrlRows = rows.filter(r => r.phase === 'Control');
+    const flowRows = rows.filter(r => r.phase === 'FlowState');
+    Plotly.newPlot('fig3', [
+      {
+        type: 'scatter',
+        mode: 'markers',
+        name: 'Control · AJ',
+        x: ctrlRows.filter(r => r.who === 'AJ').map(r => r.focus),
+        y: ctrlRows.filter(r => r.who === 'AJ').map(r => r.alerts),
+        marker: { size: 11, color: '#ea580c', symbol: 'circle', line: { width: 1, color: '#9a3412' } },
+        text: ctrlRows.filter(r => r.who === 'AJ').map(r => 'AJ day ' + r.day),
+        hovertemplate: '%{text}<br>Focus %{x}% · Alerts %{y}<extra></extra>',
+      },
+      {
+        type: 'scatter',
+        mode: 'markers',
+        name: 'Control · Peter',
+        x: ctrlRows.filter(r => r.who === 'Peter').map(r => r.focus),
+        y: ctrlRows.filter(r => r.who === 'Peter').map(r => r.alerts),
+        marker: { size: 11, color: '#fb923c', symbol: 'diamond', line: { width: 1, color: '#9a3412' } },
+        text: ctrlRows.filter(r => r.who === 'Peter').map(r => 'Peter day ' + r.day),
+        hovertemplate: '%{text}<br>Focus %{x}% · Alerts %{y}<extra></extra>',
+      },
+      {
+        type: 'scatter',
+        mode: 'markers',
+        name: 'FlowState · AJ',
+        x: flowRows.filter(r => r.who === 'AJ').map(r => r.focus),
+        y: flowRows.filter(r => r.who === 'AJ').map(r => r.alerts),
+        marker: { size: 11, color: '#059669', symbol: 'circle', line: { width: 1, color: '#047857' } },
+        text: flowRows.filter(r => r.who === 'AJ').map(r => 'AJ day ' + r.day),
+        hovertemplate: '%{text}<br>Focus %{x}% · Alerts %{y}<extra></extra>',
+      },
+      {
+        type: 'scatter',
+        mode: 'markers',
+        name: 'FlowState · Peter',
+        x: flowRows.filter(r => r.who === 'Peter').map(r => r.focus),
+        y: flowRows.filter(r => r.who === 'Peter').map(r => r.alerts),
+        marker: { size: 11, color: '#34d399', symbol: 'diamond', line: { width: 1, color: '#047857' } },
+        text: flowRows.filter(r => r.who === 'Peter').map(r => 'Peter day ' + r.day),
+        hovertemplate: '%{text}<br>Focus %{x}% · Alerts %{y}<extra></extra>',
+      },
+    ], {
+      ...plotlyLayout,
+      margin: { l: 56, r: 112, t: 36, b: 44 },
+      xaxis: {
+        title: 'Focus index (%)',
+        range: [45.5, 58.5],
+        gridcolor: '#e2e8f0',
+        zeroline: false,
+      },
+      yaxis: {
+        title: 'Distraction alerts (count / 30 min)',
+        range: [4.5, 13.5],
+        gridcolor: '#e2e8f0',
+        zeroline: false,
+      },
+      showlegend: true,
+      legend: { orientation: 'v', y: 0.98, x: 1.02, xanchor: 'left', yanchor: 'top' },
+    }, plotConfig);
+
+    /** Full block PNG: label, title, chart or table, caption (hides export row + Plotly toolbar in PNG). */
+    function exportFigureBlockPNG(exportWrapId, filename) {
+      if (typeof html2canvas !== 'function') {
+        return Promise.reject(new Error('html2canvas not loaded'));
+      }
+      const wrap = document.getElementById(exportWrapId);
+      if (!wrap) return Promise.reject(new Error('missing figure #' + exportWrapId));
+
+      return html2canvas(wrap, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        logging: false,
+        windowWidth: wrap.scrollWidth,
+        windowHeight: wrap.scrollHeight,
+        onclone: function (_doc, cloned) {
+          cloned.style.width = Math.max(wrap.offsetWidth, 880) + 'px';
+          cloned.style.maxWidth = 'none';
+          cloned.style.boxSizing = 'border-box';
+          cloned.querySelectorAll('.figure-actions').forEach(function (n) { n.style.display = 'none'; });
+          cloned.querySelectorAll('.modebar-container, .modebar').forEach(function (n) { n.style.display = 'none'; });
+          cloned.querySelectorAll('.plotly-notifier').forEach(function (n) { n.style.display = 'none'; });
+        },
+      }).then(function (canvas) {
+        const dataUrl = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      });
+    }
+
+    document.querySelectorAll('.btn-export-png').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const exportId = this.getAttribute('data-export');
+        const fn = this.getAttribute('data-filename');
+        exportFigureBlockPNG(exportId, fn).catch(function (e) {
+          console.error(e);
+          alert('Could not export figure. Wait for graphs to finish loading, then try again. If this persists, open the page over http:// (not file://).');
+        });
+      });
+    });
+
+    document.getElementById('exportAllPNG').addEventListener('click', function () {
+      const jobs = [
+        { id: 'figureExport1', fn: 'flowstate_figure1_means_sd.png' },
+        { id: 'figureExport2', fn: 'flowstate_figure2_timeseries.png' },
+        { id: 'figureExport3', fn: 'flowstate_figure3_focus_vs_alerts_scatter.png' },
+        { id: 'figureExportTable', fn: 'flowstate_table1_session_records.png' },
+      ];
+      (async function () {
+        for (let i = 0; i < jobs.length; i++) {
+          await exportFigureBlockPNG(jobs[i].id, jobs[i].fn);
+          if (i < jobs.length - 1) {
+            await new Promise(function (r) { setTimeout(r, 600); });
+          }
+        }
+      })().catch(function (e) {
+        console.error(e);
+        alert('Export failed. Try individual Save PNG buttons.');
+      });
+    });
+  </script>
+</body>
+</html>
