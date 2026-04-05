@@ -1,7 +1,7 @@
 # PowerShell script to start both backend and frontend
 # Run this script to start the entire application
 
-Write-Host "🚀 Starting NeuroCoach Application..." -ForegroundColor Cyan
+Write-Host "🚀 Starting Flowstate Application..." -ForegroundColor Cyan
 Write-Host ""
 
 # Check if virtual environment exists

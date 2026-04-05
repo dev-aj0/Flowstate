@@ -68,7 +68,7 @@ export default function InsightsPage() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `neurocoach-sessions-${Date.now()}.csv`;
+    a.download = `Flowstate-sessions-${Date.now()}.csv`;
     a.click();
   };
 

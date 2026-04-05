@@ -13,7 +13,7 @@ export default function InstructionsPage() {
           Setup Instructions
         </h1>
         <p className="text-lg text-muted-foreground mb-3">
-          Complete step-by-step guide to get NeuroCoach running
+          Complete step-by-step guide to get Flowstate running
         </p>
         <div className="p-3 rounded-lg bg-[#f97316]/10 border border-[#f97316]/20 inline-flex items-center gap-2">
           <AlertCircle className="w-5 h-5 text-[#f97316]" />

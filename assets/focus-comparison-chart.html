@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Focus: With vs Without NeuroCoach</title>
+  <title>Focus: With vs Without Flowstate</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: system-ui, sans-serif; padding: 24px; background: #ffffff; color: #1f2937; max-width: 700px; margin: 0 auto; }
@@ -17,8 +17,8 @@
   </style>
 </head>
 <body>
-  <h1>Beta/alpha power ratio over time: With vs without NeuroCoach</h1>
-  <p>Ratio ≥ 1.2 = focused (alertness &gt; relaxation). With NeuroCoach the ratio stays above threshold; without the app it drops below.</p>
+  <h1>Beta/alpha power ratio over time: With vs without Flowstate</h1>
+  <p>Ratio ≥ 1.2 = focused (alertness &gt; relaxation). With Flowstate the ratio stays above threshold; without the app it drops below.</p>
   <div class="chart-wrap">
     <canvas id="chart"></canvas>
   </div>
@@ -44,7 +44,7 @@
         labels: minutes.map(m => m + ' min'),
         datasets: [
           {
-            label: 'With NeuroCoach (β/α)',
+            label: 'With Flowstate (β/α)',
             data: withApp,
             borderColor: '#22c55e',
             backgroundColor: 'rgba(34, 197, 94, 0.1)',

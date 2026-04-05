@@ -246,7 +246,7 @@ npm run dev
 
 1. Open your web browser
 2. Navigate to: **http://localhost:3000**
-3. You should see the NeuroCoach home page
+3. You should see the Flowstate home page
 
 **What to expect:**
 - ✅ Frontend connects to backend automatically

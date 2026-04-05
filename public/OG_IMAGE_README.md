@@ -11,8 +11,8 @@ This file should be named `og-image.png` and placed in the `public/` directory.
 
 ## What to Include
 
-The image should represent your NeuroCoach app. Consider including:
-- App name/logo: "NeuroCoach" or "NeuroCoach - Focus AI"
+The image should represent your Flowstate app. Consider including:
+- App name/logo: "Flowstate" or "Flowstate - Focus AI"
 - Tagline: "Neuroadaptive Focus Coach"
 - Visual elements: Brain icon, focus-related imagery, or your app's design aesthetic
 - Brand colors: Use your app's color scheme (#3b82f6 blue, #22c55e green)

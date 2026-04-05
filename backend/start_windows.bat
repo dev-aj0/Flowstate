@@ -1,9 +1,9 @@
 @echo off
-REM Windows startup script for NeuroCoach Backend
+REM Windows startup script for Flowstate Backend
 REM This script starts the backend server for network access
 
 echo ========================================
-echo NeuroCoach Backend - Windows Server
+echo Flowstate Backend - Windows Server
 echo ========================================
 echo.
 echo Starting backend server...

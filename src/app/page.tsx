@@ -1,11 +1,16 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { Brain, Clock, TrendingUp, Target } from 'lucide-react';
+import { Brain, Clock, TrendingUp, Target, Watch } from 'lucide-react';
 import { StatCard } from '@/components/stat-card';
 import { FocusMeter } from '@/components/focus-meter';
 import Link from 'next/link';
-import { getSessions, getUserProfile } from '@/lib/storage';
+import { getSessions, getUserProfile, getSettings } from '@/lib/storage';
+import {
+  sendWristVibrate,
+  isWristConnected,
+  isWristTransportSupported,
+} from '@/lib/wrist-haptic';
 import { SessionData, UserProfile } from '@/types';
 import { useEEGStream } from '@/hooks/use-eeg-stream';
 
@@ -16,7 +21,8 @@ export default function Dashboard() {
   const [totalSessions, setTotalSessions] = useState(0);
   const [avgFocus, setAvgFocus] = useState(0);
   const [focusStreak, setFocusStreak] = useState(0);
-  
+  const [wristMockHint, setWristMockHint] = useState<string | null>(null);
+
   // Check backend and Muse connection status (not active session, just checking connection)
   const { connected, museConnected, mockMode, connectionError, focusState, currentReading } = useEEGStream(false);
 
@@ -78,6 +84,60 @@ export default function Dashboard() {
         <p className="text-lg text-muted-foreground">
           Ready to focus? Let's make today productive.
         </p>
+      </div>
+
+      {/* Wrist band: mock alert (same signal as a real distraction alert) */}
+      <div className="glass-card p-5 border border-[#3b82f6]/25 animate-fade-in">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <Watch className="w-5 h-5 text-[#3b82f6] shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-foreground">Test wrist vibration</p>
+              <p className="text-sm text-muted-foreground">
+                Sends the same command as a real distraction alert (USB or BLE). Use this to verify your Seeed XIAO before a session.
+              </p>
+            </div>
+          </div>
+          {getSettings().wristBandEnabled ? (
+            <button
+              type="button"
+              onClick={async () => {
+                setWristMockHint(null);
+                if (!isWristTransportSupported()) {
+                  setWristMockHint(
+                    'Use Chrome or Edge. USB needs Web Serial; Bluetooth needs Web Bluetooth.'
+                  );
+                  return;
+                }
+                if (!isWristConnected()) {
+                  setWristMockHint(
+                    'Connect the XIAO in Settings → Alerts (USB or Bluetooth, depending on your choice).'
+                  );
+                  return;
+                }
+                try {
+                  await sendWristVibrate();
+                  setWristMockHint('Sent — you should feel one buzz.');
+                } catch (e) {
+                  setWristMockHint(e instanceof Error ? e.message : 'Could not send to the device.');
+                }
+              }}
+              className="shrink-0 min-h-11 px-5 py-2.5 rounded-lg text-sm font-semibold bg-[#3b82f6] text-white cursor-pointer select-none shadow-md transition active:scale-[0.98] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3b82f6] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              Simulate distraction alert
+            </button>
+          ) : (
+            <Link
+              href="/settings"
+              className="shrink-0 px-5 py-2.5 rounded-lg text-sm font-medium glass-card text-foreground hover:bg-white/10 transition-colors text-center"
+            >
+              Enable in Settings first
+            </Link>
+          )}
+        </div>
+        {wristMockHint && (
+          <p className="text-sm mt-3 text-muted-foreground">{wristMockHint}</p>
+        )}
       </div>
 
       {/* Stats Grid */}
